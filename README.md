@@ -42,7 +42,7 @@ Simply typing `gmd` loads the most recent version of the complete dataset.
 | `sources(name)` | Load cleaned raw data for a specific source (e.g., `IMF_IFS`). `sources(list)` lists available sources. |
 | `raw` | Load all raw data sources for a single specified variable. |
 | `cite(key)` | Generate BibTeX citations for a specific source. |
-| `print(type)` | Display APA-style citations for `GMD` or `Stata` command. |
+| `print(type)` | Display APA and Bibtex style citations for `GMD` or `Stata` command. |
 | `network(yes)` | Bypass internet check and force connection (useful for automation). |
 
 ## Examples
