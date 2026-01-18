@@ -2,7 +2,7 @@
 
 `gmd` is a Stata command that provides direct access to the [Global Macro Database (GMD)](https://www.globalmacrodata.com), the world's most comprehensive source of macroeconomic statistics.
 
-The GMD serves as a "data of data," harmonizing and integrating more than 100 historical and modern sources into a single, consistent dataset. The `gmd` command allows you to download the latest version of the data, access historical vintages for reproducibility, and even retrieve the underlying cleaned raw data from more than 100 providers.
+The GMD represents the largest macroeconomic database harmonizing and integrating more than 100 historical and modern sources into a single, consistent dataset. The `gmd` command allows you to download the latest version of the data, access historical vintages for reproducibility, and even retrieve the underlying cleaned raw data from more than 100 providers.
 
 ## Installation
 
