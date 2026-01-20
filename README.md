@@ -43,7 +43,7 @@ Simply typing `gmd` loads the most recent version of the complete dataset.
 | `raw` | Load all raw data sources for a single specified variable. |
 | `cite(key)` | Generate BibTeX citations for a specific source. |
 | `print(type)` | Display APA and Bibtex style citations for `GMD` or `Stata` command. |
-| `network(yes)` | Bypass internet check and force connection (useful for automation). |
+| `network(yes)` | Bypass internet check and force connection. |
 
 ## Examples
 
@@ -81,7 +81,7 @@ gmd, sources(IMF_WEO)
 
 You can find the [paper](https://github.com/KMueller-Lab/Global-Macro-Database-Stata/blob/main/Global_Macro_Database_Stata.pdf)  describing the package in detail in this repository.
 
-You can find the [Technical Appendix](https://www.globalmacrodata.com) on the official website.
+You can find the [Technical Appendix]([https://www.globalmacrodata.com](https://gmd-releases.s3.ap-southeast-2.amazonaws.com/data/distribute/GMD_TA.pdf)) on the official [website](https://www.globalmacrodata.com).
 
 
 ## Citation
