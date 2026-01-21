@@ -81,7 +81,7 @@ gmd, sources(IMF_WEO)
 
 You can find the [paper](https://github.com/KMueller-Lab/Global-Macro-Database-Stata/blob/main/Global_Macro_Database_Stata.pdf)  describing the package in detail in this repository.
 
-You can find the [Technical Appendix]([https://www.globalmacrodata.com](https://gmd-releases.s3.ap-southeast-2.amazonaws.com/data/distribute/GMD_TA.pdf)) on the official [website](https://www.globalmacrodata.com).
+You can find the [Technical Appendix](https://gmd-releases.s3.ap-southeast-2.amazonaws.com/data/distribute/GMD_TA.pdf) on the official [website](https://www.globalmacrodata.com).
 
 Please visit this [repository](https://github.com/KMueller-Lab/Global-Macro-Database) to access the project source code.
 
