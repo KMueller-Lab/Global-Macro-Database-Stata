@@ -17,7 +17,7 @@ ssc install gmd, replace
 To install the latest version from GitHub:
 
 ```stata
-net install gmd, from("https://raw.githubusercontent.com/KMueller-Lab/Global-Macro-Database-Stata/main/code") replace
+net install gmd, from("https://raw.githubusercontent.com/KMueller-Lab/Global-Macro-Database-Stata/main/stata") replace
 ```
 
 *Note: This command requires the `missings` package (`ssc install missings`).*

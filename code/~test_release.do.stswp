@@ -1,0 +1,226 @@
+* ==============================================================================
+* GMD Package Release Test 
+* ==============================================================================
+* Purpose: Extensively test the gmd.ado package functionalities for release.
+* ==============================================================================
+* Helper Program: Assert Failure (Expect Error)
+* ==============================================================================
+cap program drop assert_fail
+program define assert_fail
+    syntax anything [ , * ]
+    
+    di as text "Running expected failure test: `anything' `options'"
+    cap `anything' `options'
+    if _rc == 0 {
+        di as err "TEST FAILED: Command succeeded but should have failed."
+        exit 1
+    }
+    else {
+        di as text "TEST PASSED: Correctly failed with error code " _rc
+    }
+end
+
+* ------------------------------------------------------------------------------
+* 2. Basic Data Loading Tests
+* ------------------------------------------------------------------------------
+di as text _newline ">>> TEST BLOCK 2: BASIC DATA LOADING"
+
+* 2.1 Load default dataset (latest version)
+di as text "Testing: gmd (default load)"
+gmd
+assert _N > 0
+cap confirm variable ISO3 year id countryname
+if _rc {
+    di as err "TEST FAILED: Key identifiers missing in default load"
+    exit 1
+}
+di as text "PASS: Default load"
+
+* 2.2 Load with specific version (current)
+di as text "Testing: gmd, version(current)"
+gmd, version(current)
+assert _N > 0
+di as text "PASS: version(current)"
+
+* 2.3 List versions
+di as text "Testing: gmd, version(list)"
+gmd, version(list)
+di as text "PASS: version(list)"
+
+* 2.4 Invalid version
+assert_fail gmd, version(9999_99)
+
+* ------------------------------------------------------------------------------
+* 3. Variable Management Tests
+* ------------------------------------------------------------------------------
+di as text _newline ">>> TEST BLOCK 3: VARS OPTION"
+
+* 3.1 List variables
+di as text "Testing: gmd, vars(list)"
+gmd, vars(list)
+di as text "PASS: vars(list)"
+
+* 3.2 Load variable list
+di as text "Testing: gmd, vars(load)"
+gmd, vars(load)
+cap confirm variable variable definition units
+if _rc {
+    di as err "TEST FAILED: vars(load) did not load correct columns"
+    exit 1
+}
+di as text "PASS: vars(load)"
+
+
+qui levelsof variables, clean local(all_vars)
+foreach test_var of local all_vars {
+	di as text "Testing load specific variable: `test_var'"
+	qui gmd `test_var'
+	cap confirm variable `test_var'
+	if _rc {
+		di as err "TEST FAILED: Failed to load specified variable `test_var'"
+		exit 1
+	}
+	di as text "PASS: Single variable load"
+
+	* 3.4 Raw data load for specific variable
+	di as text "Testing: gmd `test_var', raw"
+	* Raw load often returns only that var + identifiers or time series
+	gmd `test_var', raw
+	cap confirm variable `test_var'
+	if _rc {
+		di as err "TEST FAILED: Failed to load raw data for `test_var'"
+		exit 1
+	}
+	di as text "PASS: Raw variable load"
+}
+
+* 3.5 Invalid variable
+assert_fail gmd INVALID_VARIABLE_XYZ_123
+
+* ------------------------------------------------------------------------------
+* 4. Country Filtering Tests
+* ------------------------------------------------------------------------------
+di as text _newline ">>> TEST BLOCK 4: COUNTRY OPTION"
+
+* 4.1 List countries
+di as text "Testing: gmd, country(list)"
+gmd, country(list)
+di as text "PASS: country(list)"
+
+* 4.2 Load country list
+di as text "Testing: gmd, country(load)"
+gmd, country(load)
+cap confirm variable ISO3 countryname
+if _rc {
+    di as err "TEST FAILED: country(load) structure incorrect"
+    exit 1
+}
+di as text "PASS: country(load)"
+
+* 4.3 Filter by single country (USA)
+di as text "Testing: gmd, country(USA)"
+gmd, country(USA)
+qui count if ISO3 != "USA"
+if r(N) > 0 {
+    di as err "TEST FAILED: Found non-USA observations"
+    exit 1
+}
+assert _N > 0
+di as text "PASS: Single country filter (USA)"
+
+* 4.4 Filter by multiple countries (USA GBR)
+di as text "Testing: gmd, country(USA GBR)"
+gmd, country(USA GBR)
+qui count if ISO3 != "USA" & ISO3 != "GBR"
+if r(N) > 0 {
+    di as err "TEST FAILED: Found observations outside USA/GBR"
+    exit 1
+}
+assert _N > 0
+di as text "PASS: Multiple country filter"
+
+* 4.5 Case insensitivity (usa)
+di as text "Testing: gmd, country(usa) [lowercase]"
+gmd, country(usa)
+qui levelsof ISO3, local(levels) clean 
+if "`levels'" != "USA" {
+    di as err "TEST FAILED: Lowercase country code failed"
+    exit 1
+}
+di as text "PASS: Case insensitivity"
+
+* 4.6 Invalid country
+assert_fail gmd, country(ZZZ)
+assert_fail gmd, country(USA ZZZ)
+
+* 4.7 Combined: Variable + Country
+di as text "Testing: gmd `test_var', country(FRA)"
+gmd `test_var', country(FRA)
+cap confirm variable `test_var'
+assert _rc == 0
+levelsof ISO3, local(levels)
+assert "`levels'" == "FRA"
+di as text "PASS: Combined Var + Country"
+
+* ------------------------------------------------------------------------------
+* 5. Sources & Citations
+* ------------------------------------------------------------------------------
+di as text _newline ">>> TEST BLOCK 5: SOURCES & HELPERS"
+
+* 5.1 Sources List
+di as text "Testing: gmd, sources(list)"
+gmd, sources(list)
+di as text "PASS: sources(list)"
+
+* 5.2 Sources Load
+di as text "Testing: gmd, sources(load)"
+gmd, sources(load)
+cap confirm variable source_name
+assert _rc == 0
+di as text "PASS: sources(load)"
+
+* 5.3 Specific Source Load
+* Pick a source from the list to test
+local source_to_test = source_name[1] 
+di as text "Testing: gmd, sources(`source_to_test')"
+gmd, sources("`source_to_test'")
+assert _N > 0
+di as text "PASS: Specific source load (`source_to_test')"
+
+* 5.4 Cite Load
+di as text "Testing: gmd, cite(load)"
+gmd, cite(load)
+cap confirm variable citation
+assert _rc == 0
+di as text "PASS: cite(load)"
+
+* 5.5 Cite specific (GMD)
+di as text "Testing: gmd, cite(GMD)"
+gmd, cite(GMD)
+* (Visual verification in output, command shouldn't fail)
+di as text "PASS: cite(GMD)"
+
+* 5.6 Print helpers
+di as text "Testing: gmd, print(GMD)"
+gmd, print(GMD)
+di as text "Testing: gmd, print(Stata)"
+gmd, print(Stata)
+assert_fail gmd, print(INVALID)
+
+* ------------------------------------------------------------------------------
+* 6. Network Option Explicit
+* ------------------------------------------------------------------------------
+di as text _newline ">>> TEST BLOCK 6: NETWORK OPTION"
+* Just ensuring syntax works, logic flow depends on actual network
+gmd, network(yes)
+gmd, country(DEU) network(yes)
+di as text "PASS: network(yes) accepted"
+
+* ------------------------------------------------------------------------------
+* Final Summary
+* ------------------------------------------------------------------------------
+di as text _newline "{hline 60}"
+di as text "ALL TESTS PASSED SUCCESSFULLY"
+di as text "{hline 60}"
+
+log close
