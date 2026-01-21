@@ -223,8 +223,8 @@ program define gmd
 		local cite_count = wordcount("`cite'")
 		if `cite_count' != 1 {
 			di as err "Only one citation can be retrieved at a time"
-			exit 498;
 			restore
+			exit 498
 		}
 		
 		* Assert the source exist 
@@ -363,6 +363,12 @@ program define gmd
 			}
 			
 			cap use "https://gmd-releases.s3.ap-southeast-2.amazonaws.com/data/clean/combined/`sources'.dta", clear
+			if _rc != 0 {
+				di as err "Unable to load data for source '`sources''." 
+				di as text "Please check your internet connection or report this issue."
+				restore 
+				exit 498
+			}
 			
             if "`anything'" != "" {
                 cap noisily confirm var `sources'_`anything'
@@ -543,8 +549,7 @@ program define gmd
 		di as err "`anything' is an identifying variable loaded in the dataset, specify common variables"
 		di as text "To print the list of variables: " "{stata gmd, vars(list):gmd, vars(list)}"
 		di as text "To load the list of variables: " "{stata gmd, vars(load):gmd, vars(load)}"
-		exit 498;
-               
+		exit 498
 	}
 	
 	* Preserve 
