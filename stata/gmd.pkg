@@ -8,7 +8,7 @@ d This package provides access to the Global Macro Dataset
 d
 d Requires: missings
 d
-d Distribution-Date: 20260121
+d Distribution-Date: 20260123
 d
 f gmd.ado
 f gmd.sthlp

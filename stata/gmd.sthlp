@@ -14,7 +14,7 @@
 {title:Syntax}
 
 {p 8 17 2}
-{cmdab:gmd} [{it:varlist}] [{cmd:,} {cmdab:v:ersion(}{it:YYYY_MM|current|list}{cmd:)} {cmdab:co:untry(}{it:string|load|list}{cmd:)} {cmdab:r:aw} {cmdab:var:s(}{it:load|list}{cmd:)} {cmdab:s:ources(}{it:string|load|list}{cmd:)} {cmdab:cite(}{it:string|load}{cmd:)} {cmdab:print(}{it:string}{cmd:)} {cmdab:network(}{it:yes}{cmd:)}]
+{cmdab:gmd} [{it:varlist}] [{cmd:,} {cmdab:v:ersion(}{it:YYYY_MM|current|list}{cmd:)} {cmdab:co:untry(}{it:string|load|list}{cmd:)} {cmdab:r:aw} {cmdab:var:s(}{it:load|list}{cmd:)} {cmdab:s:ources(}{it:string|load|list}{cmd:)} {cmdab:cite(}{it:string|load}{cmd:)} {cmdab:print(}{it:string}{cmd:)} {cmdab:network(}{it:string}{cmd:)} {cmdab:fast(}{it:string}{cmd:)}]
 
 {marker description}{...}
 {title:Description}
@@ -73,7 +73,10 @@ Type {cmd:gmd, cite(load)} to load the full list of sources and their citation k
 {cmd:print(}{it:GMD|Stata}{cmd:)} displays APA and BibTeX style citations for the {cmd:GMD} database or the {cmd:gmd} Stata command. This is primarily used by the command's interactive links.{p_end}
 
 {phang}
-{cmd:network(}{it:yes}{cmd:)} bypasses the internet connection check and forces the command to attempt a connection. Use this if the automatic check fails but you have internet access.{p_end}
+{cmd:network(}{it:string}{cmd:)} bypasses the internet connection check and forces the command to attempt a connection. Use this if the automatic check fails but you have internet access.{p_end}
+
+{phang}
+{cmd:fast(}{it:string}{cmd:)} allows users to save the data locally instead of downloading each time. Specify {cmd:fast(yes)} to do so.{p_end}
 
 {marker examples}{...}
 {title:Examples}
@@ -81,19 +84,22 @@ Type {cmd:gmd, cite(load)} to load the full list of sources and their citation k
 {phang}1. Load the latest full dataset:{p_end}
 {phang2}{cmd:. gmd}
 
-{phang}2. Load specific variables (e.g., Nominal GDP and Population):{p_end}
+{phang}2. Load the latest full dataset and save it locally:{p_end}
+{phang2}{cmd:. gmd, fast(yes)}
+
+{phang}3. Load specific variables (e.g., Nominal GDP and Population):{p_end}
 {phang2}{cmd:. gmd nGDP pop}
 
-{phang}3. Load data for a specific country (e.g., Singapore):{p_end}
+{phang}4. Load data for a specific country (e.g., Singapore):{p_end}
 {phang2}{cmd:. gmd, country(SGP)}
 
-{phang}4. Load a specific vintage (e.g., September 2025) for reproducibility:{p_end}
+{phang}5. Load a specific vintage (e.g., September 2025) for reproducibility:{p_end}
 {phang2}{cmd:. gmd, version(2025_09)}
 
-{phang}5. Access raw data for a specific variable:{p_end}
+{phang}6. Access raw data for a specific variable:{p_end}
 {phang2}{cmd:. gmd nGDP, raw}
 
-{phang}6. Access data from a specific source (e.g., IMF World Economic Outlook):{p_end}
+{phang}7. Access data from a specific source (e.g., IMF World Economic Outlook):{p_end}
 {phang2}{cmd:. gmd, sources(IMF_WEO)}
 
 {title:Authors}
@@ -118,7 +124,13 @@ You can find the {browse "https://github.com/KMueller-Lab/Global-Macro-Database-
 You can find the {browse "https://gmd-releases.s3.ap-southeast-2.amazonaws.com/data/distribute/GMD_TA.pdf":Technical Appendix} on the official {browse "https://www.globalmacrodata.com":website}.
 
 {pstd}
-Please visit this {browse "https://github.com/KMueller-Lab/Global-Macro-Database":repository} to access the project source code.
+Please visit this {browse "https://github.com/KMueller-Lab/Global-Macro-Database":repository} to access the GMD source code.
+
+{pstd}
+Please visit this {browse "https://github.com/KMueller-Lab/Global-Macro-Database-Stata":repository} to access the Stata package source code.
+
+{pstd}
+Please contact {browse "mailto:lehbib@u.nus.edu":lehbib@u.nus.edu} if you have any questions or suggestions.
 
 {title:Citation}
 
@@ -134,7 +146,7 @@ BibTeX:
 {phang}
 {cmd:@techreport{mueller2025global,}{break}
 {cmd:    title = {{The Global Macro Database: A New International Macroeconomic Dataset}},}{break}
-{cmd:    author = {Müller, Karsten and Xu, Chenzi and Lehbib, Mohamed and Chen, Ziliang},}{break}
+{cmd:    author = {M{\"u}ller, Karsten and Xu, Chenzi and Lehbib, Mohamed and Chen, Ziliang},}{break}
 {cmd:    institution = {National Bureau of Economic Research},}{break}
 {cmd:    type = "Working Paper",}{break}
 {cmd:    series = "Working Paper Series",}{break}

@@ -9,7 +9,7 @@ program define gmd
     version 15.0
     
     * Define syntax with optional arguments for version, country, raw data, etc.
-    syntax [anything] [, VErsion(string) COUntry(string) Raw VARS(string) Sources(string) CITE(string) print(string) Network(string)] 
+    syntax [anything] [, VErsion(string) COUntry(string) Raw VARS(string) Sources(string) CITE(string) print(string) Network(string) Fast(string)] 
     
     * Calculate number of variables 
     local word_count = wordcount("`anything'")
@@ -87,6 +87,15 @@ program define gmd
         }
         * If user requests specific version, validate it exists
         else if "`version'" != "" {
+			* Assert version is one word 
+			cap assert wordcount("`version'") == 1
+			if _rc != 0 {
+				local selected_version = versions in 1
+				di as err "Version must either be one specific version (`selected_version') or current."
+				restore 
+				exit 
+			}
+			
             if `: list version in available_versions' {
                 * If version exists, set local to the desired version 
 				local selected_version "`version'"
@@ -135,20 +144,21 @@ program define gmd
 		di as text "Loading local version"
 		
 		* Now check if the local version exist, use it if it does, otherwise, load it and save it.
-		local personal_folder "`c(sysdir_personal)'"
+		local personal_folder "`c(sysdir_plus)'"
 		
 		* Check if the dataset is saved locally
-		cap confirm file "`personal_folder'GMD.dta"
+		cap confirm file "`personal_folder'g/GMD.dta"
 		
 		* If it's saved locally, store its path in a local macro
 		if _rc == 0 {
-			local gmd_df "`personal_folder'GMD.dta"
-			
+			local saved_gmd "yes"
+			local gmd_df "`personal_folder'g/GMD.dta"			
 		}
 		
-		* If the dataset is not saved locally, load it and save it locally
+		* If the dataset is not saved locally, restore and exit
 		else {
-			 restore
+			di as err "Local version not found"
+			restore
 			exit 498
 		}
        
@@ -268,8 +278,7 @@ program define gmd
             scalar drop cit_text tmp_line
             restore
             exit
-        }
-		
+        }		
     }
 
 ********************************************************************************
@@ -382,6 +391,20 @@ program define gmd
                     if _rc == 0 local keepvars "`keepvars' id"
                     
                     qui keep `keepvars'
+					
+					* Filter for a country 
+					if "`country'" != "" {
+						cap qui keep if ISO3 == strupper("`country'")
+						if _rc == 0 {
+							restore, not 
+							exit
+						}
+						else {
+							di as err "Country code not valid, returning data for all countries."	
+							di as text "To print the list of countries: " "{stata gmd, country(list):gmd, country(list)}"
+							di as text "To load the list of countries: " "{stata gmd, country(load):gmd, country(load)}"
+						}
+					}
                     restore, not 
 					exit 
                 }
@@ -391,7 +414,7 @@ program define gmd
                 else {					
 					qui ren `sources'_* *
 					qui ds ISO3 year, not
-					di as err "This source doesn't have data on `anything'. It has data on `r(varlist)'"
+					di as err "This source doesn't have data on `anything'. It has data on `r(varlist)'."
                     restore
                     exit
                 }
@@ -482,6 +505,7 @@ program define gmd
             }        
         }
 		else {
+			di as text "Loaded raw data on `anything'"
 			restore, not
 		}
 		
@@ -490,14 +514,21 @@ program define gmd
 	* Helper: Load country list
     if "`country'" == "load" {
         preserve 
-		local personal_folder "`c(sysdir_personal)'"
-        cap use "`personal_folder'countrylist.dta", clear 
+		local personal_folder "`c(sysdir_plus)'"
+        cap use "`personal_folder'g/countrylist.dta", clear 
         if _rc != 0 {
-            di as text "Saving countrylist dataframe locally"
+			* Load the remote dataset
 			cap use "https://gmd-releases.s3.ap-southeast-2.amazonaws.com/data/helpers/countrylist.dta", clear 
 			if _rc == 0 {
-				cap use "`personal_folder'countrylist.dta", clear 
-				qui save "`personal_folder'countrylist.dta", replace
+				* Check if we have the user's permission to save: 
+				if "`fast'" == "Yes" {
+				di as text "Saving countrylist dataframe locally"
+				qui save "`personal_folder'g/countrylist.dta", replace
+				}
+				else {
+					restore, not
+					exit
+				}
 			}
 			else {
 				di `"Unable to access country list. Please raise an issue at {browse "https://github.com/KMueller-Lab/Global-Macro-Database-Stata"}."'
@@ -508,22 +539,25 @@ program define gmd
 		restore, not
 		exit
     }
+	
     * Helper: Display country list
     else if "`country'" == "list" {
         preserve 
-		local personal_folder "`c(sysdir_personal)'"
-        cap use "`personal_folder'countrylist.dta", clear 
+		local personal_folder "`c(sysdir_plus)'"
+        cap use "`personal_folder'g/countrylist.dta", clear 
         if _rc != 0 {
-            di as text "Saving countrylist dataframe locally"
+			* Load the remote dataset
 			cap use "https://gmd-releases.s3.ap-southeast-2.amazonaws.com/data/helpers/countrylist.dta", clear 
 			if _rc == 0 {
-				cap use "`personal_folder'countrylist.dta", clear 
-				qui save "`personal_folder'countrylist.dta", replace
-			}
-			else {
-				di `"Unable to access country list. Please raise an issue at {browse "https://github.com/KMueller-Lab/Global-Macro-Database-Stata"}."'
-				restore
-				exit 498
+				* Check if we have the user's permission to save: 
+				if "`fast'" == "Yes" {
+				di as text "Saving countrylist dataframe locally"
+				qui save "`personal_folder'g/countrylist.dta", replace
+				}
+				else {
+					restore, not
+					exit
+				}
 			}           
         }
         keep countryname ISO3
@@ -557,25 +591,26 @@ program define gmd
 	
 	* Using the local version 
 	if "`gmd_df'" == "" & "`raw'" == "" {
-		* Now check if the local version exist, use it if it does, otherwise, load it and save it.
-		local personal_folder "`c(sysdir_personal)'"
+		* Now check if the local version exist, use it if it does, otherwise, load it and save it (if we have the permission).
+		local personal_folder "`c(sysdir_plus)'"
 		
 		* Check if the dataset is saved locally
-		cap confirm file "`c(sysdir_personal)'GMD_`selected_version'.dta"
+		cap confirm file "`c(sysdir_plus)'g/GMD_`selected_version'.dta"
 
 		* If it's saved locally, store its path in a local macro
 		if _rc == 0 {
-			local gmd_df "`personal_folder'GMD_`selected_version'.dta"
+			local saved_gmd "yes"
+			local gmd_df "`personal_folder'g/GMD_`selected_version'.dta"
 			qui use "`gmd_df'", clear 
 		}
 		* If the dataset is not saved locally, load it and save it locally
-		else {		
+		else if "`fast'" == "yes" {		
 			cap qui use "https://gmd-releases.s3.ap-southeast-2.amazonaws.com/data/distribute/GMD_`selected_version'.dta", clear 
 			if _rc == 0 {
-				qui save "`personal_folder'GMD_`selected_version'.dta", replace
-				qui save "`personal_folder'GMD.dta", replace // Load in case the user doesn't have internet 
-				di as text "GMD dataset loaded and saved locally in `personal_folder'."
-				local gmd_df "`personal_folder'GMD_`selected_version'.dta"
+				qui save "`personal_folder'g/GMD_`selected_version'.dta", replace
+				qui save "`personal_folder'g/GMD.dta", replace // Load in case the user doesn't have internet 
+				di as text "GMD dataset loaded and saved locally in `personal_folder'g."
+				local gmd_df "`personal_folder'g/GMD_`selected_version'.dta"
 				qui use "`gmd_df'", clear 
 			}
 			else {
@@ -583,6 +618,10 @@ program define gmd
 				restore 
 				exit 498
 			}
+		}
+		
+		else {
+			cap qui use "https://gmd-releases.s3.ap-southeast-2.amazonaws.com/data/distribute/GMD_`selected_version'.dta", clear 
 		}
 	}
 	
@@ -731,11 +770,14 @@ program define gmd
             di as text "When using the gmd Stata command, please further cite:"
             di as text "{stata gmd, cite(lehbib2025gmd):[BibTeX code]} " `"{stata gmd, print(Stata): [APA-style citation]}"'
             di as text ""
+			if "`fast'" == "" & "`saved_gmd'" != "yes" {
+				di as text "To save the data locally for faster reloading, use: " "{stata gmd, fast(yes):gmd, fast(yes)}"
+			}
             * -------------------------------------------------
 
             * Logic for raw/sources data (may lack countryname/id)
             if "`raw'" != "" | "`sources'" != "" {
-                di as text "Final dataset: `r(N)' observations of `n_vars' variables"
+                di as text "Final dataset: `r(N)' observations of `n_vars' variablesD"
                 if "`version'" != "" di as text "Version: `version'"
                 else di as text "Version: `selected_version'"
             }
