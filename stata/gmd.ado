@@ -14,7 +14,7 @@ program define gmd
     * Calculate number of variables 
     local word_count = wordcount("`anything'")
 	
-    
+     
 ********************************************************************************
 * Checking dependencies, setting package versions 
 ********************************************************************************
