@@ -771,7 +771,7 @@ program define gmd
             di as text "{stata gmd, cite(lehbib2025gmd):[BibTeX code]} " `"{stata gmd, print(Stata): [APA-style citation]}"'
             di as text ""
 			if "`fast'" == "" & "`saved_gmd'" != "yes" {
-				di as text "To save the data locally for faster reloading, use: " "{stata gmd, version(`selected_version') fast(yes):gmd, version(`selected_version') fast(yes)}"
+				di as text "To save the data locally for faster reloading, use: " "{stata gmd, fast(yes):gmd, fast(yes)}"
 			}
             * -------------------------------------------------
 

@@ -1,0 +1,204 @@
+--------------------------------------------------------------------------------------
+      name:  <unnamed>
+       log:  /Users/mohamedlehbib/Downloads/gmd_examples.log
+  log type:  text
+ opened on:  23 Jan 2026, 17:32:51
+
+. 
+. * Install required packages
+. ssc install missings, replace
+checking missings consistency and verifying not already installed...
+installing into /Users/mohamedlehbib/Library/Application Support/Stata/ado/plus/...
+installation complete.
+
+. ssc install gmd, replace
+checking gmd consistency and verifying not already installed...
+installing into /Users/mohamedlehbib/Library/Application Support/Stata/ado/plus/...
+installation complete.
+
+. net install binsreg, from(https://raw.githubusercontent.com/nppackages/binsreg/maste
+> r/stata) replace
+checking binsreg consistency and verifying not already installed...
+installing into /Users/mohamedlehbib/Library/Application Support/Stata/ado/plus/...
+installation complete.
+
+. ssc install winsor2, replace
+checking winsor2 consistency and verifying not already installed...
+installing into /Users/mohamedlehbib/Library/Application Support/Stata/ado/plus/...
+installation complete.
+
+. 
+. *------------------------------------------------------------------------------
+. * Example 1: Revisiting Okun's Law
+. *------------------------------------------------------------------------------
+. 
+. * Download unemployment and real GDP data
+. gmd unemp rGDP, version(2025_09)
+Global Macro Database by Müller et al. (2025)
+Website: https://www.globalmacrodata.com
+
+When using these data, please cite:
+[BibTeX code]  [APA-style citation]
+
+When using the gmd Stata command, please further cite:
+[BibTeX code]  [APA-style citation]
+
+To save the data locally for faster reloading, use: gmd, fast(yes)
+Final dataset: 23574 observations for 2 variables
+Version: 2025_09
+
+. 
+. * Set panel structure
+. xtset id year
+
+Panel variable: id (unbalanced)
+ Time variable: year, 1270 to 2030
+         Delta: 1 unit
+
+. 
+. * Calculate real GDP growth rate
+. gen rGDP_gr = (rGDP - L.rGDP) / L.rGDP
+(1,045 missing values generated)
+
+. 
+. * Visualize Okun's Law relationship
+. binsreg unemp rGDP_gr if rGDP_gr < 0.1 & rGDP_gr > -0.1, ///
+>     xtitle("Real GDP Growth") ///
+>     ytitle("Unemployment") ///
+>     scheme(sj)
+Sorting dataset on rGDP_gr...
+Note: This step is omitted if dataset already sorted by rGDP_gr.
+Warning: To speed up computation, bin/degree selection uses a subsample of roughly max
+> (5,000, 0.01n) observations if the sample size n>5,000. To use the full sample, set 
+> randcut(1).
+
+Binscatter plot
+Bin selection method: IMSE-optimal plug-in choice (select # of bins)
+Placement: Quantile-spaced
+Derivative: 0
+
+----------------------------------------------
+# of observations             |    7187
+# of distinct values          |    7183
+# of clusters                 |       .
+------------------------------+---------------
+Bin/Degree selection:         | 
+         Degree of polynomial |       0
+  # of smoothness constraints |       0
+                    # of bins |      25
+                 imse, bias^2 |  33.971
+                   imse, var. |  35.823
+----------------------------------------------
+
+----------------------------------------
+         |      p       s       df
+---------+------------------------------
+ dots    |      0       0       25
+----------------------------------------
+
+. 
+. * Export graph with Stata Journal scheme
+. graph export okun_law.pdf, replace 
+file /Users/mohamedlehbib/Downloads/okun_law.pdf saved as PDF format
+
+. 
+. *------------------------------------------------------------------------------
+. * Example 2: Two Eras of Money and Inflation
+. *------------------------------------------------------------------------------
+. 
+. * Download money supply and inflation data
+. gmd M2 infl, version(2025_09)
+Global Macro Database by Müller et al. (2025)
+Website: https://www.globalmacrodata.com
+
+When using these data, please cite:
+[BibTeX code]  [APA-style citation]
+
+When using the gmd Stata command, please further cite:
+[BibTeX code]  [APA-style citation]
+
+To save the data locally for faster reloading, use: gmd, fast(yes)
+Final dataset: 27636 observations for 2 variables
+Version: 2025_09
+
+. 
+. * Set panel structure
+. xtset id year
+
+Panel variable: id (unbalanced)
+ Time variable: year, 1210 to 2030
+         Delta: 1 unit
+
+. 
+. * Calculate M2 growth rate
+. gen M2_gr = 100 * ((M2 - L.M2) / L.M2)
+(18,407 missing values generated)
+
+. 
+. * Winsorize at 1st and 99th percentiles
+. winsor2 infl M2_gr, cut(1 99) replace trim
+
+. 
+. * Pre-1963 era: Strong money-inflation link
+. xtreg infl M2_gr if year < 1963, fe cluster(id)
+
+Fixed-effects (within) regression               Number of obs     =      2,066
+Group variable: id                              Number of groups  =         78
+
+R-squared:                                      Obs per group:
+     Within  = 0.2507                                         min =          1
+     Between = 0.4562                                         avg =       26.5
+     Overall = 0.2921                                         max =        117
+
+                                                F(1, 77)          =      69.41
+corr(u_i, Xb) = 0.1146                          Prob > F          =     0.0000
+
+                                    (Std. err. adjusted for 78 clusters in id)
+------------------------------------------------------------------------------
+             |               Robust
+        infl | Coefficient  std. err.      t    P>|t|     [95% conf. interval]
+-------------+----------------------------------------------------------------
+       M2_gr |   .4777082   .0573372     8.33   0.000     .3635352    .5918812
+       _cons |  -.0446781   .5873677    -0.08   0.940    -1.214277     1.12492
+-------------+----------------------------------------------------------------
+     sigma_u |  5.0773555
+     sigma_e |  10.141312
+         rho |  .20042285   (fraction of variance due to u_i)
+------------------------------------------------------------------------------
+
+. 
+. * Post-1963 era: Weakened money-inflation link
+. xtreg infl M2_gr if year >= 1963, fe cluster(id)
+
+Fixed-effects (within) regression               Number of obs     =      6,785
+Group variable: id                              Number of groups  =        153
+
+R-squared:                                      Obs per group:
+     Within  = 0.2331                                         min =          4
+     Between = 0.7573                                         avg =       44.3
+     Overall = 0.3447                                         max =         63
+
+                                                F(1, 152)         =      94.05
+corr(u_i, Xb) = 0.3564                          Prob > F          =     0.0000
+
+                                   (Std. err. adjusted for 153 clusters in id)
+------------------------------------------------------------------------------
+             |               Robust
+        infl | Coefficient  std. err.      t    P>|t|     [95% conf. interval]
+-------------+----------------------------------------------------------------
+       M2_gr |   .3889898   .0401097     9.70   0.000     .3097454    .4682342
+       _cons |    2.74578   .6814611     4.03   0.000     1.399421    4.092138
+-------------+----------------------------------------------------------------
+     sigma_u |  5.0123691
+     sigma_e |  10.427416
+         rho |   .1876947   (fraction of variance due to u_i)
+------------------------------------------------------------------------------
+
+. 
+. *------------------------------------------------------------------------------
+. log close
+      name:  <unnamed>
+       log:  /Users/mohamedlehbib/Downloads/gmd_examples.log
+  log type:  text
+ closed on:  23 Jan 2026, 17:33:27
+--------------------------------------------------------------------------------------

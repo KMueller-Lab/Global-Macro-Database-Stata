@@ -1,6 +1,0 @@
-v 3
-d Materials by Müller et. al (2025)
-d lehbib@u.nus.edu
-d https://www.globalmacrodata.com/
-d
-p gmd Global Macroeconomic Database with version control and country filtering
