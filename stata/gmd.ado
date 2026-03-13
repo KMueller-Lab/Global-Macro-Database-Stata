@@ -130,7 +130,7 @@ program define gmd
 			local package = version_package in 1 
 			if "`package'" != "`package_version'" {
 				di as text "There is a new version of the package. " "{stata ssc install gmd, replace:Click here to update.}"
-				di `"Please raise an issue if the update does not work at {browse "https://github.com/KMueller-Lab/Global-Macro-Database-Stata"}."'
+				di `"Please update the package from the GitHub repository and raise an issue if the update does not work at {browse "https://github.com/KMueller-Lab/Global-Macro-Database-Stata"}."'
 			}			
 		}
 		
