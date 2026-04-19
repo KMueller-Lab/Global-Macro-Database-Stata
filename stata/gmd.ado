@@ -9,9 +9,17 @@ program define gmd
     version 15.0
     
     * Define syntax with optional arguments for version, country, raw data, etc.
-    syntax [anything] [, VErsion(string) COUntry(string) Raw VARS(string) Sources(string) CITE(string) print(string) Network(string) Fast(string)] 
-    
-    * Calculate number of variables 
+    syntax [anything] [, VErsion(string) COUntry(string) Raw VARS(string) Sources(string) CITE(string) print(string) Network(string) Fast(string)]
+
+    * Reject unexpected values for network(); only yes/on-style synonyms bypass the check
+    if "`network'" != "" {
+        if !inlist(strlower(trim("`network'")), "yes", "y", "on", "true", "1") {
+            di as err "Invalid value for network(): `network'. Use network(yes) to bypass the internet check."
+            exit 198
+        }
+    }
+
+    * Calculate number of variables
     local word_count = wordcount("`anything'")
 	
      
@@ -380,43 +388,55 @@ program define gmd
 			}
 			
             if "`anything'" != "" {
-                cap noisily confirm var `sources'_`anything'
-                if _rc == 0 {
-                    local keepvars "ISO3 year `sources'_`anything'"
-                    
+                * Prefix each requested variable with the source name and validate
+                local prefixed_vars ""
+                local missing_vars ""
+                foreach v of local anything {
+                    cap confirm variable `sources'_`v'
+                    if _rc == 0 {
+                        local prefixed_vars "`prefixed_vars' `sources'_`v'"
+                    }
+                    else {
+                        local missing_vars "`missing_vars' `v'"
+                    }
+                }
+
+                if "`missing_vars'" == "" {
+                    local keepvars "ISO3 year `prefixed_vars'"
+
                     * Check if IDs exist in this specific source file
                     cap confirm variable countryname
-                    if _rc == 0 local keepvars "`sources'_`keepvars' countryname"
+                    if _rc == 0 local keepvars "`keepvars' countryname"
                     cap confirm variable id
                     if _rc == 0 local keepvars "`keepvars' id"
-                    
+
                     qui keep `keepvars'
-					
-					* Filter for a country 
-					if "`country'" != "" {
-						cap qui keep if ISO3 == strupper("`country'")
-						if _rc == 0 {
-							restore, not 
-							exit
-						}
-						else {
-							di as err "Country code not valid, returning data for all countries."	
-							di as text "To print the list of countries: " "{stata gmd, country(list):gmd, country(list)}"
-							di as text "To load the list of countries: " "{stata gmd, country(load):gmd, country(load)}"
-						}
-					}
-                    restore, not 
-					exit 
-                }
-				
-				* If no variable is specified, there is nothing to filter,
-				* and we return to the full source dataset 
-                else {					
-					qui ren `sources'_* *
-					qui ds ISO3 year, not
-					di as err "This source doesn't have data on `anything'. It has data on `r(varlist)'."
-                    restore
+
+                    * Filter for a country
+                    if "`country'" != "" {
+                        cap qui keep if ISO3 == strupper("`country'")
+                        if _rc == 0 {
+                            restore, not
+                            exit
+                        }
+                        else {
+                            di as err "Country code not valid, returning data for all countries."
+                            di as text "To print the list of countries: " "{stata gmd, country(list):gmd, country(list)}"
+                            di as text "To load the list of countries: " "{stata gmd, country(load):gmd, country(load)}"
+                        }
+                    }
+                    restore, not
                     exit
+                }
+
+                * At least one requested variable isn't in this source — list what is available
+                else {
+                    qui ren `sources'_* *
+                    qui ds ISO3 year, not
+                    di as err "Source `sources' does not have:`missing_vars'"
+                    di as text "It has data on `r(varlist)'."
+                    restore
+                    exit 498
                 }
             }
 			
