@@ -11,9 +11,18 @@ program define gmd
     * Define syntax with optional arguments for version, country, raw data, etc.
     syntax [anything] [, VErsion(string) COUntry(string) Raw VARS(string) Sources(string) CITE(string) print(string) Network(string) Fast(string)] 
     
-    * Calculate number of variables 
+    * Calculate number of variables
     local word_count = wordcount("`anything'")
-	
+
+    * [#3] Treat list/current/load keywords case-insensitively (consistent with R).
+    * Only normalize when the value IS a keyword; real version numbers / source
+    * names / cite keys / ISO3 codes are left unchanged.
+    if inlist(strlower("`version'"), "list", "current") local version = strlower("`version'")
+    if inlist(strlower("`sources'"), "load", "list")    local sources = strlower("`sources'")
+    if strlower("`cite'") == "load"                      local cite = strlower("`cite'")
+    if inlist(strlower("`vars'"), "load", "list")       local vars = strlower("`vars'")
+    if inlist(strlower("`country'"), "load", "list")    local country = strlower("`country'")
+
      
 ********************************************************************************
 * Checking dependencies, setting package versions 
@@ -412,11 +421,11 @@ program define gmd
 				* If no variable is specified, there is nothing to filter,
 				* and we return to the full source dataset 
                 else {					
-					qui ren `sources'_* *
+					cap qui ren `sources'_* *
 					qui ds ISO3 year, not
 					di as err "This source doesn't have data on `anything'. It has data on `r(varlist)'."
                     restore
-                    exit
+                    exit 498
                 }
             }
 			
@@ -637,6 +646,21 @@ program define gmd
 	   
 			* Opens specified version (default = current version)
 			
+            * [#2] Normalize variable names to canonical casing (case-insensitive);
+            * unmatched tokens kept as-is so the existing invalid-variable handling still fires.
+            local _norm ""
+            foreach req of local anything {
+                local _hit "`req'"
+                foreach v of varlist * {
+                    if strlower("`v'") == strlower("`req'") {
+                        local _hit "`v'"
+                        continue, break
+                    }
+                }
+                local _norm "`_norm' `_hit'"
+            }
+            local anything = trim("`_norm'")
+
             cap confirm variable `anything', exact
             if _rc == 0 {
                 qui keep ISO3 year id countryname `anything'
