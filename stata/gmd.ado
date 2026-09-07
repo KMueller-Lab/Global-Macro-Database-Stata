@@ -7,26 +7,84 @@
 cap program drop gmd
 program define gmd
     version 15.0
-    
+
+    * Capture the raw command line so we can tell whether save() was specified
+    * (syntax cannot distinguish an empty save() from save() being absent).
+    local rawcmd `"`0'"'
+
     * Define syntax with optional arguments for version, country, raw data, etc.
-    syntax [anything] [, VErsion(string) COUntry(string) Raw VARS(string) Sources(string) CITE(string) print(string) Network(string) Fast(string)] 
+    syntax [anything] [, VErsion(string) COUntry(string) Years(numlist) INCome(string) Raw VARS(string) Sources(string) CITE(string) print(string) Network(string) SAVE(string asis) CLEAR]
     
     * Calculate number of variables 
     local word_count = wordcount("`anything'")
+
+    * --- Parse the save() option ---------------------------------------------
+    * save() stores the data locally. Forms:
+    *   save()                       save to the current working directory
+    *   save(replace)                save to the current working directory, overwrite
+    *   save("/full/path")           save to that existing folder
+    *   save("/full/path", replace)  save to that folder, overwrite
+    local save_specified = 0
+    if strpos(lower(`"`rawcmd'"'), "save(") | `"`save'"' != "" {
+        local save_specified = 1
+    }
+    local save_dir ""
+    local save_replace = 0
+    if `save_specified' {
+        local svcontent = trim(`"`save'"')
+        if `"`svcontent'"' != "" {
+            local cpos = strrpos(`"`svcontent'"', ",")
+            local tail = ""
+            if `cpos' > 0 {
+                local tail = trim(substr(`"`svcontent'"', `cpos' + 1, .))
+            }
+            if lower(`"`tail'"') == "replace" {
+                local save_replace = 1
+                local save_dir = trim(substr(`"`svcontent'"', 1, `cpos' - 1))
+            }
+            else if lower(`"`svcontent'"') == "replace" {
+                local save_replace = 1
+                local save_dir ""
+            }
+            else {
+                local save_dir `"`svcontent'"'
+            }
+        }
+        * Strip surrounding double quotes from the path, if present
+        if substr(`"`save_dir'"', 1, 1) == char(34) & substr(`"`save_dir'"', -1, 1) == char(34) {
+            local save_dir = substr(`"`save_dir'"', 2, strlen(`"`save_dir'"') - 2)
+        }
+    }
+
+    * --- Read the data-directory pointer --------------------------------------
+    * A one-line text file in the personal directory holding the full path to
+    * the user's chosen data folder. It persists across Stata sessions.
+    local pointer "`c(sysdir_personal)'gmd_datadir.txt"
+    local datadir ""
+    cap confirm file "`pointer'"
+    if _rc == 0 {
+        tempname pf
+        cap file open `pf' using "`pointer'", read text
+        if _rc == 0 {
+            file read `pf' datadir
+            file close `pf'
+            local datadir = trim(`"`datadir'"')
+        }
+    }
+
+    * The current working directory takes precedence over the remembered folder
+    * whenever it already holds GMD data. Each project can therefore keep its own
+    * copy (and version) of the data next to its do-files.
+    local cwdfiles : dir `"`c(pwd)'"' files "GMD_*.dta"
+    if `"`cwdfiles'"' != "" {
+        local datadir `"`c(pwd)'"'
+    }
 	
      
 ********************************************************************************
-* Checking dependencies, setting package versions 
+* Setting package version
 ********************************************************************************
-    
-    * Check if the required 'missings' package is installed
-    cap which missings
-    if _rc !=0 {
-        di as error "This command requires the 'missings' package."
-        di as text "To install it, type " "{stata ssc install missings:ssc install missings}"
-        exit 498
-    }
-    
+
     * Define the current internal package version
     local package_version = "2.0.0"
  
@@ -54,6 +112,44 @@ program define gmd
     }   
 	
 ********************************************************************************
+* Protect data in memory
+* Refuse to replace unsaved data in memory unless clear is specified, mirroring
+* Stata's use/clear convention. Display-only calls (lists, single citations) are
+* exempt because they preserve/restore the user's data.
+********************************************************************************
+    local info_only = 0
+    if "`print'" != "" local info_only = 1
+    if "`version'" == "list" local info_only = 1
+    if "`cite'" != "" & "`cite'" != "load" local info_only = 1
+    if "`vars'" == "list" local info_only = 1
+    if "`sources'" == "list" local info_only = 1
+    if "`country'" == "list" local info_only = 1
+    if !`info_only' & "`clear'" == "" & c(changed) == 1 {
+        di as err "no; data in memory would be lost"
+        di as text "You have unsaved changes in memory. Add the {cmd:clear} option to replace the data, or save your work first."
+        exit 4
+    }
+
+********************************************************************************
+* Reject incompatible option combinations
+* years() and income() are post-load filters applied near the end of the
+* program. The sources() branch loads a source dataset and exits before those
+* filters run, and source/raw data carry neither an income_group column nor the
+* panel shape those filters assume. Catch the combination up front so the filter
+* is never silently ignored.
+********************************************************************************
+    if "`sources'" != "" & ("`years'" != "" | "`income'" != "") {
+        di as err "years() and income() cannot be combined with sources()."
+        di as text "Those filters apply to the main GMD dataset, not the source datasets returned by sources()."
+        exit 198
+    }
+    if "`raw'" != "" & "`income'" != "" {
+        di as err "The income() option cannot be combined with raw."
+        di as text "income() needs the income_group column, which only the main GMD dataset carries."
+        exit 198
+    }
+
+********************************************************************************
 * Compares package version against data version in CSV
 * Check version logic, determine which one to use 
 * Check if the user has internet by trying to fetch the versions.csv 
@@ -75,6 +171,7 @@ program define gmd
         }
         qui drop version_package
         local selected_version = versions in 1   
+        local latest_version = versions in 1
         qui levelsof versions, local(available_versions) clean
         
         * If user asks for list of versions, print and exit
@@ -82,6 +179,8 @@ program define gmd
             foreach ver of local available_versions {
                 di as text "`ver'"
             }
+            di as text ""
+            di as text `"For changes between versions, see {browse "https://www.globalmacrodata.com/data#release-notes":the release notes}."'
             restore 
             exit 
         }
@@ -144,15 +243,36 @@ program define gmd
 		di as text "Loading local version"
 		
 		* Now check if the local version exist, use it if it does, otherwise, load it and save it.
-		local personal_folder "`c(sysdir_plus)'"
+		* (local data lives in the saved data directory recorded by the pointer)
 		
 		* Check if the dataset is saved locally
-		cap confirm file "`personal_folder'g/GMD.dta"
+		local local_file ""
+		local local_version ""
+		if `"`datadir'"' != "" {
+		    local best = 0
+		    local localfiles : dir `"`datadir'"' files "GMD_*.dta"
+		    foreach f of local localfiles {
+		        local v = subinstr(subinstr(`"`f'"', "GMD_", "", 1), ".dta", "", 1)
+		        local vnum = real(subinstr("`v'", "_", "", 1))
+		        if `vnum' > `best' {
+		            local best = `vnum'
+		            local local_version "`v'"
+		            local local_file `"`f'"'
+		        }
+		    }
+		}
+		if `"`local_file'"' != "" {
+		    cap confirm file `"`datadir'/`local_file'"'
+		}
+		else {
+		    cap confirm file `"`datadir'/__gmd_none__.dta"'
+		}
 		
 		* If it's saved locally, store its path in a local macro
 		if _rc == 0 {
 			local saved_gmd "yes"
-			local gmd_df "`personal_folder'g/GMD.dta"			
+			local gmd_df `"`datadir'/`local_file'"'
+			local selected_version "`local_version'"			
 		}
 		
 		* If the dataset is not saved locally, restore and exit
@@ -213,6 +333,7 @@ program define gmd
         * If successful, commit changes (restore, not) and exit
         if _rc == 0 {
             restore, not
+            gmd_unchanged
             exit
         }
         else {
@@ -298,6 +419,7 @@ program define gmd
             if "`sources'" == "load" {
                 di as text "Imported the list of sources."
                 restore, not
+                gmd_unchanged
                 exit 
             }
             else if "`sources'" == "list" {
@@ -397,6 +519,7 @@ program define gmd
 						cap qui keep if ISO3 == strupper("`country'")
 						if _rc == 0 {
 							restore, not 
+							gmd_unchanged
 							exit
 						}
 						else {
@@ -406,6 +529,7 @@ program define gmd
 						}
 					}
                     restore, not 
+                    gmd_unchanged
 					exit 
                 }
 				
@@ -422,6 +546,7 @@ program define gmd
 			
 			else {
 				restore, not 
+				gmd_unchanged
 				exit 
 			}
 
@@ -440,6 +565,7 @@ program define gmd
             exit 498
         }
         restore, not 
+        gmd_unchanged
         exit
     }
     
@@ -454,28 +580,33 @@ program define gmd
         }
         
         * Formatting logic for table display
+        * Definition prints in full in the LAST column; long ones wrap. The
+        * header rule is sized to fit the current window.
         qui ds
-        qui gen varlength = strlen(variable)
-        qui gen deflength = strlen(definition)
-        qui su varlength 
-        local varlength = r(max) + 2
+        qui gen varlength  = strlen(variable)
+        qui gen unitlength = strlen(units)
+        qui gen deflength  = strlen(definition)
+        qui su varlength
+        local varcol = r(max) + 2
+        qui su unitlength
+        local unitcol = `varcol' + r(max) + 2
         qui su deflength
-        local deflength = r(max) + `varlength' + 2
-        
+        local tablewidth = min(`unitcol' + r(max), c(linesize))
+
         di as text _newline "Available variables:" _newline
-        di as text "{hline 90}"
-        di as text "Variable" _col(`varlength') "Definition" _col(`deflength') "Units"
-        di as text "{hline 90}"
-        
+        di as text "{hline `tablewidth'}"
+        di as text "Variable" _col(`varcol') "Units" _col(`unitcol') "Definition"
+        di as text "{hline `tablewidth'}"
+
         qui count
         local total = r(N)
         forvalues i = 1/`total' {
-            local vname = variable[`i']
-            local vdesc = definition[`i']
+            local vname  = variable[`i']
             local vunits = units[`i']
-            di as text "`vname'" _col(`varlength') "`vdesc'" _col(`deflength') "`vunits'"
+            local vdesc  = definition[`i']
+            di as text "`vname'" _col(`varcol') "`vunits'" _col(`unitcol') "`vdesc'"
         }
-        di as text "{hline 90}"
+        di as text "{hline `tablewidth'}"
         restore 
         exit                
     }
@@ -511,68 +642,51 @@ program define gmd
 		
     }
 	
-	* Helper: Load country list
+    * Helper: Load country list
     if "`country'" == "load" {
-        preserve 
-		local personal_folder "`c(sysdir_plus)'"
-        cap use "`personal_folder'g/countrylist.dta", clear 
+        preserve
+        cap use "https://gmd-releases.s3.ap-southeast-2.amazonaws.com/data/helpers/countrylist.dta", clear
         if _rc != 0 {
-			* Load the remote dataset
-			cap use "https://gmd-releases.s3.ap-southeast-2.amazonaws.com/data/helpers/countrylist.dta", clear 
-			if _rc == 0 {
-				* Check if we have the user's permission to save: 
-				if "`fast'" == "yes" {
-				di as text "Saving countrylist dataframe locally"
-				qui save "`personal_folder'g/countrylist.dta", replace
-				}
-				else {
-					restore, not
-					exit
-				}
-			}
-			else {
-				di `"Unable to access country list. Please raise an issue at {browse "https://github.com/KMueller-Lab/Global-Macro-Database-Stata"}."'
-				restore 
-				exit 
-			}           
+            di `"Unable to access country list. Please raise an issue at {browse "https://github.com/KMueller-Lab/Global-Macro-Database-Stata"}."'
+            restore
+            exit
         }
-		restore, not
-		exit
+        restore, not
+        gmd_unchanged
+        exit
     }
-	
+
     * Helper: Display country list
     else if "`country'" == "list" {
-        preserve 
-		local personal_folder "`c(sysdir_plus)'"
-        cap use "`personal_folder'g/countrylist.dta", clear 
+        preserve
+        cap use "https://gmd-releases.s3.ap-southeast-2.amazonaws.com/data/helpers/countrylist.dta", clear
         if _rc != 0 {
-			* Load the remote dataset
-			cap use "https://gmd-releases.s3.ap-southeast-2.amazonaws.com/data/helpers/countrylist.dta", clear 
-			if _rc == 0 {
-				* Check if we have the user's permission to save: 
-				if "`fast'" == "yes" {
-				di as text "Saving countrylist dataframe locally"
-				qui save "`personal_folder'g/countrylist.dta", replace
-				}
-				else {
-					restore, not
-					exit
-				}
-			}           
+            di `"Unable to access country list. Please raise an issue at {browse "https://github.com/KMueller-Lab/Global-Macro-Database-Stata"}."'
+            restore
+            exit
         }
         keep countryname ISO3
+        qui gen _namelen = strlen(countryname)
+        qui su _namelen
+        local cwidth = 12 + r(max)
+        qui drop _namelen
+        local old_linesize = c(linesize)
+        if `cwidth' > `old_linesize' {
+            qui set linesize `=min(`cwidth', 255)'
+        }
         di as text _newline "Available countries:" _newline
-        di as text "{hline 90}"
-        di as text "ISO3 code  " _col(10) "Country name" 
-        di as text "{hline 90}"
+        di as text "{hline `cwidth'}"
+        di as text "ISO3 code" _col(12) "Country name"
+        di as text "{hline `cwidth'}"
         qui count
         local total = r(N)
         forvalues i = 1/`total' {
-            local iso3 = ISO3[`i']
-            local country = countryname[`i']
-            di as text "`iso3'    " _col(10) "`country'"
+            local iso3  = ISO3[`i']
+            local cname = countryname[`i']
+            di as text "`iso3'" _col(12) "`cname'"
         }
-        di as text "{hline 90}"
+        di as text "{hline `cwidth'}"
+        qui set linesize `old_linesize'
         restore
         exit
     }
@@ -591,45 +705,118 @@ program define gmd
 	
 	* Using the local version 
 	if "`gmd_df'" == "" & "`raw'" == "" {
-		* Now check if the local version exist, use it if it does, otherwise, load it and save it (if we have the permission).
-		local personal_folder "`c(sysdir_plus)'"
-		
-		* Check if the dataset is saved locally
-		cap confirm file "`c(sysdir_plus)'g/GMD_`selected_version'.dta"
+        * Load the data: save() persists locally; otherwise use the saved copy or download
+        if `save_specified' {
+            * save(): download the selected version and store it in the chosen folder
+            local save_target `"`save_dir'"'
+            if `"`save_target'"' == "" {
+                local save_target `"`c(pwd)'"'
+            }
 
-		* If it's saved locally, store its path in a local macro
-		if _rc == 0 {
-			local saved_gmd "yes"
-			local gmd_df "`personal_folder'g/GMD_`selected_version'.dta"
-			qui use "`gmd_df'", clear 
-		}
-		* If the dataset is not saved locally, load it and save it locally
-		else if "`fast'" == "yes" {		
-			cap qui use "https://gmd-releases.s3.ap-southeast-2.amazonaws.com/data/distribute/GMD_`selected_version'.dta", clear 
-			if _rc == 0 {
-				qui save "`personal_folder'g/GMD_`selected_version'.dta", replace
-				qui save "`personal_folder'g/GMD.dta", replace // Load in case the user doesn't have internet 
-				di as text "GMD dataset loaded and saved locally in `personal_folder'g."
-				local gmd_df "`personal_folder'g/GMD_`selected_version'.dta"
-				qui use "`gmd_df'", clear 
-			}
-			else {
-				di `"Unable to load the data. Please raise an issue at {browse "https://github.com/KMueller-Lab/Global-Macro-Database-Stata"}."'
-				restore 
-				exit 498
-			}
-		}
-		
-		else {
-			cap qui use "https://gmd-releases.s3.ap-southeast-2.amazonaws.com/data/distribute/GMD_`selected_version'.dta", clear 
-		}
-	}
-	
-	else if "`gmd_df'" != "" & "`raw'" == "" {
+            * The target folder must already exist
+            local dir_exists = 0
+            cap mata: st_local("dir_exists", strofreal(direxists(st_local("save_target"))))
+            if "`dir_exists'" != "1" {
+                di as err `"The folder does not exist: `save_target'"'
+                di as text `"Provide a full path to an existing folder, e.g. save("/full/path")."'
+                restore
+                exit 498
+            }
+
+            * Require replace before overwriting an existing file
+            local target_file `"`save_target'/GMD_`selected_version'.dta"'
+            cap confirm file `"`target_file'"'
+            if _rc == 0 & `save_replace' == 0 {
+                di as err `"File already exists: `target_file'"'
+                di as text `"Add replace to overwrite, e.g. save("`save_target'", replace)."'
+                restore
+                exit 498
+            }
+
+            * Download the selected version
+            cap qui use "https://gmd-releases.s3.ap-southeast-2.amazonaws.com/data/distribute/GMD_`selected_version'.dta", clear
+            if _rc != 0 {
+                di `"Unable to load the data. Please raise an issue at {browse "https://github.com/KMueller-Lab/Global-Macro-Database-Stata"}."'
+                restore
+                exit 498
+            }
+
+            * Save it and record the directory in the pointer file
+            qui save `"`target_file'"', replace
+            cap mkdir "`c(sysdir_personal)'"
+            tempname pf
+            qui file open `pf' using "`pointer'", write replace text
+            file write `pf' `"`save_target'"' _n
+            file close `pf'
+            di as text `"GMD `selected_version' saved to `save_target'."'
+            local gmd_df `"`target_file'"'
+            local saved_gmd "yes"
+        }
+        else if `"`datadir'"' != "" {
+            * A data directory is remembered: load from it
+            if "`version'" != "" {
+                * User asked for a specific version
+                local target_file `"`datadir'/GMD_`selected_version'.dta"'
+                cap confirm file `"`target_file'"'
+                if _rc == 0 {
+                    di as text "Loading the local version (GMD_`selected_version')."
+                    qui use `"`target_file'"', clear
+                    local saved_gmd "yes"
+                    local gmd_df `"`target_file'"'
+                }
+                else {
+                    di as text `"GMD_`selected_version'.dta not found in `datadir'. Downloading version `selected_version'."'
+                    cap qui use "https://gmd-releases.s3.ap-southeast-2.amazonaws.com/data/distribute/GMD_`selected_version'.dta", clear
+                }
+            }
+            else {
+                * Default: load the most recent local version
+                local best = 0
+                local local_version ""
+                local local_file ""
+                local localfiles : dir `"`datadir'"' files "GMD_*.dta"
+                foreach f of local localfiles {
+                    local v = subinstr(subinstr(`"`f'"', "GMD_", "", 1), ".dta", "", 1)
+                    local vnum = real(subinstr("`v'", "_", "", 1))
+                    if `vnum' > `best' {
+                        local best = `vnum'
+                        local local_version "`v'"
+                        local local_file `"`f'"'
+                    }
+                }
+                if `"`local_file'"' != "" {
+                    di as text "Loading the local version (GMD_`local_version')."
+                    qui use `"`datadir'/`local_file'"', clear
+                    local saved_gmd "yes"
+                    local gmd_df `"`datadir'/`local_file'"'
+                    local selected_version "`local_version'"
+                    if "`latest_version'" != "" & `best' > 0 {
+                        local latestnum = real(subinstr("`latest_version'", "_", "", 1))
+                        if `latestnum' > `best' {
+                            di as text "A newer version (GMD_`latest_version') is available."
+                            di as text `"Update with: {stata gmd, save("`datadir'"):gmd, save("`datadir'")}"'
+                        }
+                    }
+                }
+                else {
+                    di as text `"No local GMD data found in `datadir'. Downloading version `selected_version'."'
+                    cap qui use "https://gmd-releases.s3.ap-southeast-2.amazonaws.com/data/distribute/GMD_`selected_version'.dta", clear
+                }
+            }
+        }
+        else {
+            * No saved location: download without persisting
+            cap qui use "https://gmd-releases.s3.ap-southeast-2.amazonaws.com/data/distribute/GMD_`selected_version'.dta", clear
+        }
+    }
+
+		else if "`gmd_df'" != "" & "`raw'" == "" {
 		qui use "`gmd_df'", clear 
 	}
-	
-	restore, not
+
+	* The preserve above stays active until every filter below has succeeded.
+	* If a filter exits with an error, Stata restores the user's original data
+	* automatically, as use would.
 	
     * --- BRANCH 4: MAIN DATASET ---		
     * Only runs if country is not load/list AND no other data was loaded above
@@ -639,8 +826,20 @@ program define gmd
 			
             cap confirm variable `anything', exact
             if _rc == 0 {
-                qui keep ISO3 year id countryname `anything'
-                
+                if "`income'" != "" {
+                    * Retain income_group so the income() filter can run below
+                    cap confirm variable income_group, exact
+                    if _rc == 0 {
+                        qui keep ISO3 year id countryname income_group `anything'
+                    }
+                    else {
+                        qui keep ISO3 year id countryname `anything'
+                    }
+                }
+                else {
+                    qui keep ISO3 year id countryname `anything'
+                }
+
 				* Keep observations after first year with data
 				qui egen valid_count = rownonmiss(`anything')
 				qui bysort ISO3 (year): drop if sum(valid_count) == 0
@@ -732,11 +931,125 @@ program define gmd
     }
 
 ********************************************************************************
-* Display dataset descriptives 
+* Years option (post-load filtering)
+* Keeps only the requested years from the loaded panel. Works on the main
+* dataset and on raw data, both of which carry a year variable. The numlist is
+* already expanded and validated by the syntax command, so bad input (e.g. a
+* non-integer or a malformed range) is rejected before reaching this block.
+********************************************************************************
+    if "`years'" != "" {
+        cap confirm variable year, exact
+        if _rc != 0 {
+            di as err "The years() option requires a year variable, which is not available for the loaded data."
+            exit 498
+        }
+
+        * Build a keep flag by looping over the requested years
+        qui gen byte keep_year = 0
+        foreach yr of numlist `years' {
+            qui replace keep_year = 1 if year == `yr'
+        }
+
+        qui count if keep_year == 1
+        if r(N) == 0 {
+            di as err "No observations found for the requested year(s): `years'."
+            di as text "Load the data without the years() option to see which years are available."
+            drop keep_year
+            exit 498
+        }
+        qui keep if keep_year == 1
+        qui drop keep_year
+    }
+
+********************************************************************************
+* Income-group option (post-load filtering)
+* Keeps only countries in the requested World Bank income group(s), read from
+* the income_group variable carried by the main dataset. Values in the data are
+* "High income", "Upper middle income", "Lower middle income" and "Low income".
+********************************************************************************
+    if "`income'" != "" {
+        cap confirm variable income_group, exact
+        if _rc != 0 {
+            di as err "The income() option is only available for the main GMD dataset."
+            di as text "It cannot be combined with raw or sources data, which carry no income group."
+            exit 498
+        }
+
+        * Normalise the input: lowercase, collapse the known multi-word phrases
+        * into single tokens, turn commas into spaces, then trim. After this each
+        * word is a single token that can be mapped to a canonical group value.
+        local inc_in = lower(`"`income'"')
+        local inc_in : subinstr local inc_in "lower middle income" "lowermiddleincome", all
+        local inc_in : subinstr local inc_in "upper middle income" "uppermiddleincome", all
+        local inc_in : subinstr local inc_in "lower middle" "lowermiddleincome", all
+        local inc_in : subinstr local inc_in "upper middle" "uppermiddleincome", all
+        local inc_in : subinstr local inc_in "high income" "highincome", all
+        local inc_in : subinstr local inc_in "low income" "lowincome", all
+        local inc_in = subinstr(`"`inc_in'"', ",", " ", .)
+        local inc_in = trim(itrim(`"`inc_in'"'))
+
+        qui gen byte keep_income = 0
+        local invalid_income ""
+        foreach tok of local inc_in {
+            local cval ""
+            if inlist("`tok'", "highincome", "high", "h", "hic", "hi") {
+                local cval "High income"
+            }
+            else if inlist("`tok'", "uppermiddleincome", "um", "umc", "umic", "umi", "upper") {
+                local cval "Upper middle income"
+            }
+            else if inlist("`tok'", "lowermiddleincome", "lm", "lmc", "lmic", "lmi", "lower") {
+                local cval "Lower middle income"
+            }
+            else if inlist("`tok'", "lowincome", "low", "l", "lic", "li") {
+                local cval "Low income"
+            }
+
+            if "`cval'" != "" {
+                qui replace keep_income = 1 if income_group == "`cval'"
+            }
+            else {
+                local invalid_income "`invalid_income' `tok'"
+            }
+        }
+
+        * Reject unrecognised income groups
+        local invalid_income = trim(itrim("`invalid_income'"))
+        if "`invalid_income'" != "" {
+            di as err "Invalid income group(s): `invalid_income'"
+            di as text "Valid groups: High income, Upper middle income, Lower middle income, Low income."
+            di as text "Abbreviations are allowed, e.g. H, UM, LM, L (or HIC, UMC, LMC, LIC)."
+            drop keep_income
+            exit 498
+        }
+
+        qui count if keep_income == 1
+        if r(N) == 0 {
+            di as err "No observations found for the requested income group(s): `income'."
+            drop keep_income
+            exit 498
+        }
+        qui keep if keep_income == 1
+        qui drop keep_income
+
+        * income_group is a helper column. Drop it when the user requested a
+        * specific varlist so the result mirrors a plain variable selection.
+        if "`anything'" != "" {
+            cap drop income_group
+        }
+    }
+
+********************************************************************************
+* Display dataset descriptives
 ********************************************************************************
     
     * Drop variables that are completely missing in the filtered subset
-    cap missings dropvars, force
+    foreach v of varlist _all {
+        qui count if !missing(`v')
+        if r(N) == 0 {
+            drop `v'
+        }
+    }
     qui describe
     
     * Dynamic variable count: Subtract identifiers from total count
@@ -751,7 +1064,6 @@ program define gmd
     * If no data variables remain, warn user
     if `n_vars' <= 0 { 
         di as err "The database has no data on `anything' for `country'"
-        restore
         exit 498
     }
     
@@ -770,8 +1082,8 @@ program define gmd
             di as text "When using the gmd Stata command, please further cite:"
             di as text "{stata gmd, cite(lehbib2025gmd):[BibTeX code]} " `"{stata gmd, print(Stata): [APA-style citation]}"'
             di as text ""
-			if "`fast'" == "" & "`saved_gmd'" != "yes" & "`raw'" == "" {
-				di as text "To save the data locally for faster reloading, use: " "{stata gmd, version(`selected_version') fast(yes):gmd, version(`selected_version') fast(yes)}"
+			if "`saved_gmd'" != "yes" & "`raw'" == "" {
+				di as text `"To save the data locally for faster reloading, use: gmd, save("/full/folder/path")"'
 			}
             * -------------------------------------------------
 
@@ -792,5 +1104,22 @@ program define gmd
             }    
         }
     }
-    
+
+    * Success: keep the loaded data and do not flag it as unsaved work
+    restore, not
+    gmd_unchanged
+
+end
+
+********************************************************************************
+* Helper: mark the data in memory as unchanged
+* gmd builds the returned dataset with keep/drop/import, which sets c(changed).
+* The result is a fresh load, not the user's own work, so a subsequent gmd call
+* should not demand clear. Saving to a tempfile is the only way to reset the
+* flag from within a program.
+********************************************************************************
+program define gmd_unchanged
+    if _N == 0 exit
+    tempfile gmd_tmp
+    qui save "`gmd_tmp'"
 end
