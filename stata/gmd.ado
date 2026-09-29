@@ -19,14 +19,6 @@ program define gmd
 * Checking dependencies, setting package versions 
 ********************************************************************************
     
-    * Check if the required 'missings' package is installed
-    cap which missings
-    if _rc !=0 {
-        di as error "This command requires the 'missings' package."
-        di as text "To install it, type " "{stata ssc install missings:ssc install missings}"
-        exit 498
-    }
-    
     * Define the current internal package version
     local package_version = "2.0.0"
  
@@ -736,7 +728,13 @@ program define gmd
 ********************************************************************************
     
     * Drop variables that are completely missing in the filtered subset
-    cap missings dropvars, force
+    * (done here directly, so gmd needs no other package)
+    if _N > 0 {
+        foreach v of varlist _all {
+            qui count if !missing(`v')
+            if r(N) == 0 drop `v'
+        }
+    }
     qui describe
     
     * Dynamic variable count: Subtract identifiers from total count

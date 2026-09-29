@@ -30,7 +30,6 @@ convention YYYY_MM. The command automatically clears any data in memory
 before loading.
 
 {pstd}
-Note: This command requires the {cmd:missings} package to be installed.
 First-time use will download the dataset and cache it locally in your
 personal system directory for faster future access.
 

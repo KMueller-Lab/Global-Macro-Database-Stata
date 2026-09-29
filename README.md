@@ -6,7 +6,7 @@ The GMD represents the largest macroeconomic database harmonizing and integratin
 
 ## Installation
 
-You can install the package directly from SSC (once available) or from this repository.
+You can install the package from SSC or, for the latest development version, from this repository.
 
 To install from SSC:
 
@@ -19,8 +19,6 @@ To install the latest version from GitHub:
 ```stata
 net install gmd, from("https://raw.githubusercontent.com/KMueller-Lab/Global-Macro-Database-Stata/main/stata") replace
 ```
-
-*Note: This command requires the `missings` package (`ssc install missings`).*
 
 ## Usage
 
@@ -44,6 +42,7 @@ Simply typing `gmd` loads the most recent version of the complete dataset.
 | `cite(key)` | Generate BibTeX citations for a specific source. |
 | `print(type)` | Display APA and Bibtex style citations for `GMD` or `Stata` command. |
 | `network(yes)` | Bypass internet check and force connection. |
+| `fast(yes)` | Save the data locally instead of downloading it each time. |
 
 ## Examples
 
