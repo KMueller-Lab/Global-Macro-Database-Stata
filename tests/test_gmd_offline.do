@@ -122,6 +122,14 @@ check `=_rc==198' "save() with raw rejected"
 cap noi gmd, vars(list) save()
 check `=_rc==198' "save() with vars(list) rejected"
 
+di _n "=== network() accepts only yes-style values"
+cap noi gmd nGDP, version(2025_09) country(USA) network(no)
+check `=_rc==198' "network(no) rejected"
+cap noi gmd nGDP, version(2025_09) country(USA) network(banana)
+check `=_rc==198' "network(banana) rejected"
+cap noi gmd nGDP, version(2025_09) country(USA) network(YES)
+check `=_rc==0' "network(YES) accepted"
+
 di _n "=== package update notice compares versions numerically"
 * Subprograms of an ado-file are private to it; run the file to call one.
 cap program drop gmd_unchanged gmd_resolve_vars gmd_local_versions gmd_find_version gmd_newer

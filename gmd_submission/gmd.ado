@@ -31,6 +31,15 @@ program define gmd, rclass
         exit 198
     }
 
+    * network() switches the internet check off; only yes-style values do so,
+    * so that network(no) is not silently read as its opposite
+    if `"`network'"' != "" {
+        if !inlist(lower(trim(`"`network'"')), "yes", "y", "on", "true", "1") {
+            di as err `"Invalid value for network(): `network'. Use network(yes) to bypass the internet check."'
+            exit 198
+        }
+    }
+
     * --- Parse the save() option ---------------------------------------------
     * save() stores the data locally. Forms:
     *   save()                       save to the current working directory
