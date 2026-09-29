@@ -6,7 +6,7 @@ The GMD represents the largest macroeconomic database harmonizing and integratin
 
 ## Installation
 
-You can install the package directly from SSC (once available) or from this repository.
+You can install the package directly from SSC or from this repository.
 
 To install from SSC:
 
