@@ -44,6 +44,12 @@ di _n "=== sources(list)"
 gmd, sources(list)
 di _n "=== cite(GMD)"
 gmd, cite(GMD)
+di _n "=== cite() leaves user scalars alone"
+scalar cit_text = 42
+scalar tmp_line = 7
+gmd, cite(GMD)
+check `=scalar(cit_text)==42 & scalar(tmp_line)==7' "user scalars survive cite()"
+scalar drop cit_text tmp_line
 di _n "=== print(GMD)"
 gmd, print(GMD)
 
@@ -67,9 +73,16 @@ di _n "=== save() again without replace: expect error (no download)"
 cap noi gmd, save("`scratch'/data")
 check `=_rc==498' "overwrite without replace rejected"
 
-di _n "=== save() with replace (download 2)"
-gmd, save("`scratch'/data", replace)
+di _n "=== save () with a space and a relative path, replace (download 2)"
+cd "`scratch'"
+gmd, save ("data", replace)
+cd "`root'"
 check `=_rc==0' "overwrite with replace ok"
+tempname pf
+file open `pf' using "`scratch'/personal/gmd_datadir.txt", read text
+file read `pf' ptr
+file close `pf'
+check `="`ptr'"=="`scratch'/data"' "relative save() path remembered as an absolute path"
 
 di _n "=== save(replace) in pwd for an older version (download 3)"
 cd "`scratch'/data"

@@ -28,13 +28,13 @@ The basic syntax is:
 gmd [varlist] [, options]
 ```
 
-Simply typing `gmd` loads the most recent version of the complete dataset.
+Simply typing `gmd` loads the complete dataset: the most recent local copy if you saved one with `save()`, otherwise the most recent version online. The version that was loaded is printed at the end and stored in `r(version)`.
 
 ### Options
 
 | Option | Description |
 | --- | --- |
-| `version(YYYY_MM)` | Load a specific version of the database (e.g., `2025_03`) for reproducibility. `current` shows the loaded version. `version(list)` lists all available versions. |
+| `version(YYYY_MM)` | Load a specific version of the database (e.g., `2025_03`) for reproducibility. `version(current)` loads the most recent online version. `version(list)` lists all available versions. |
 | `country(ISO3)` | Filter data for specific countries (e.g., `USA`, `GBR`). `country(list)` lists available codes; `country(load)` loads the ISO3-to-name table. |
 | `years(numlist)` | Keep only the given years, e.g. `years(2000/2020)`. |
 | `income(group)` | Keep only countries in the given World Bank income group(s): `High income`, `Upper middle income`, `Lower middle income`, `Low income` (abbreviations `H`, `UM`, `LM`, `L` accepted). |
@@ -57,7 +57,7 @@ gmd, version(2025_09) save()      // once: downloads and stores GMD_2025_09.dta 
 gmd nGDP pop, version(2025_09)    // in do-files: loads the local file, no download
 ```
 
-Internet access is needed for the version check at the start of every call, for downloads, and for `raw`, `sources()`, `cite()`, `vars()`, and `country()`. Offline, `gmd` loads the most recent local copy if one exists. See `help gmd` for details.
+A call that pins a version stored locally needs no internet access. Otherwise, internet access is needed for the version check at the start of the call, for downloads, and for `raw`, `sources()`, `cite()`, `vars()`, and `country()`. Offline, `gmd` loads the most recent local copy if one exists, and a pinned version that is not stored locally is an error rather than being replaced by another version. See `help gmd` for details.
 
 ## Examples
 

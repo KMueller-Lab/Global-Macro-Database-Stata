@@ -1,4 +1,4 @@
-*! version 2.0.0 10jan2026 Mohamed Lehbib and Karsten Müller
+*! version 2.1.0 29sep2026 Mohamed Lehbib and Karsten Müller
 
 ********************************************************************************
 * Initial set up and syntax 
@@ -38,7 +38,7 @@ program define gmd, rclass
     *   save("/full/path")           save to that existing folder
     *   save("/full/path", replace)  save to that folder, overwrite
     local save_specified = 0
-    if strpos(lower(`"`rawcmd'"'), "save(") | `"`save'"' != "" {
+    if regexm(lower(`"`rawcmd'"'), "save[ ]*[(]") | `"`save'"' != "" {
         local save_specified = 1
     }
     local save_dir ""
@@ -88,8 +88,11 @@ program define gmd, rclass
     * The current working directory takes precedence over the remembered folder
     * whenever it already holds GMD data. Each project can therefore keep its own
     * copy (and version) of the data next to its do-files.
-    local cwdfiles : dir `"`c(pwd)'"' files "GMD_*.dta"
-    if `"`cwdfiles'"' != "" {
+    * A pinned version missing from the working directory is still looked up in
+    * the remembered folder (pointerdir).
+    local pointerdir `"`datadir'"'
+    gmd_local_versions `"`c(pwd)'"'
+    if "`r(latest)'" != "" {
         local datadir `"`c(pwd)'"'
     }
 	
@@ -99,7 +102,7 @@ program define gmd, rclass
 ********************************************************************************
 
     * Define the current internal package version
-    local package_version = "2.0.0"
+    local package_version = "2.1.0"
  
 ********************************************************************************
 * Print option (Internal Helper)
@@ -182,12 +185,19 @@ program define gmd, rclass
     * still go through the check below.
     local main_call = ("`raw'`sources'`cite'`vars'" == "" & "`country'" != "list" & "`country'" != "load")
     local skip_net = 0
-    if regexm("`version'", "^[0-9][0-9][0-9][0-9]_[0-9][0-9]$") & `"`datadir'"' != "" & !`save_specified' & `main_call' {
-        cap confirm file `"`datadir'/GMD_`version'.dta"'
-        if _rc == 0 {
+
+    * save() stores the main dataset; it has no meaning for the other calls
+    if `save_specified' & (!`main_call' | "`version'" == "list") {
+        di as err "save() can only be used when loading the main GMD dataset."
+        di as text "It cannot be combined with raw, sources(), cite(), vars(), country(list|load) or version(list)."
+        exit 198
+    }
+    if regexm("`version'", "^[0-9][0-9][0-9][0-9]_[0-9][0-9]$") & !`save_specified' & `main_call' {
+        gmd_find_version `version', dirs(`"`datadir'"' `"`pointerdir'"')
+        if `"`r(file)'"' != "" {
             local skip_net = 1
             local selected_version "`version'"
-            local gmd_df `"`datadir'/GMD_`version'.dta"'
+            local gmd_df `"`r(file)'"'
             local saved_gmd "yes"
             di as text "Loading the local version (GMD_`version')."
         }
@@ -206,7 +216,8 @@ program define gmd, rclass
         
         * Check if package is outdated
         local package = version_package in 1 
-        if "`package'" != "`package_version'" {
+        gmd_newer "`package'" "`package_version'"
+        if r(newer) {
             di as text "There is a new version of the package. " "{stata ssc install gmd, replace:Click here to update.}"
         }
         qui drop version_package
@@ -267,7 +278,8 @@ program define gmd, rclass
 			
 			* Check if package is outdated
 			local package = version_package in 1 
-			if "`package'" != "`package_version'" {
+			gmd_newer "`package'" "`package_version'"
+			if r(newer) {
 				di as text "There is a new version of the package. " "{stata ssc install gmd, replace:Click here to update.}"
 				di `"Please update the package from the GitHub repository and raise an issue if the update does not work at {browse "https://github.com/KMueller-Lab/Global-Macro-Database-Stata"}."'
 			}			
@@ -310,16 +322,10 @@ program define gmd, rclass
 		local local_file ""
 		local local_version ""
 		if `"`datadir'"' != "" {
-		    local best = 0
-		    local localfiles : dir `"`datadir'"' files "GMD_*.dta"
-		    foreach f of local localfiles {
-		        local v = subinstr(subinstr(`"`f'"', "GMD_", "", 1), ".dta", "", 1)
-		        local vnum = real(subinstr("`v'", "_", "", 1))
-		        if `vnum' > `best' {
-		            local best = `vnum'
-		            local local_version "`v'"
-		            local local_file `"`f'"'
-		        }
+		    gmd_local_versions `"`datadir'"'
+		    if "`r(latest)'" != "" {
+		        local local_version "`r(latest)'"
+		        local local_file "GMD_`r(latest)'.dta"
 		    }
 		}
 		if `"`local_file'"' != "" {
@@ -436,8 +442,9 @@ program define gmd, rclass
             qui keep if strlower(source) == strlower("`cite'")
             
             * Get the citation and store in a scalar to preserve quotes
-            scalar cit_text = citation[1]
-            local p = cit_text
+            tempname cit_text tmp_line
+            scalar `cit_text' = citation[1]
+            local p = `cit_text'
             
             * Insert a pipe (|) before fields (comma followed by space and word=)
             local p = ustrregexra(`"`p'"', ",\s*([a-zA-Z0-9_]+\s*=)", "," + "|" + "  " + "$1")
@@ -454,12 +461,11 @@ program define gmd, rclass
                 }
                 else {
                     * Use scalar to avoid quote issues in local expansion
-                    scalar tmp_line = substr(`"`p'"', 1, `pos'-1)
-                    noi di as text scalar(tmp_line)
+                    scalar `tmp_line' = substr(`"`p'"', 1, `pos'-1)
+                    noi di as text scalar(`tmp_line')
                     local p = substr(`"`p'"', `pos'+1, .)
                 }
             }
-            scalar drop cit_text tmp_line
             restore
             exit
         }		
@@ -790,6 +796,12 @@ program define gmd, rclass
                 exit 498
             }
 
+            * Store the absolute path: a relative one would change meaning after cd
+            local here `"`c(pwd)'"'
+            qui cd `"`save_target'"'
+            local save_target `"`c(pwd)'"'
+            qui cd `"`here'"'
+
             * Require replace before overwriting an existing file
             local target_file `"`save_target'/GMD_`selected_version'.dta"'
             cap confirm file `"`target_file'"'
@@ -822,10 +834,11 @@ program define gmd, rclass
         else if `"`datadir'"' != "" {
             * A data directory is remembered: load from it
             if "`version'" != "" {
-                * User asked for a specific version
-                local target_file `"`datadir'/GMD_`selected_version'.dta"'
-                cap confirm file `"`target_file'"'
-                if _rc == 0 {
+                * User asked for a specific version (working directory first,
+                * then the remembered folder)
+                gmd_find_version `selected_version', dirs(`"`datadir'"' `"`pointerdir'"')
+                local target_file `"`r(file)'"'
+                if `"`target_file'"' != "" {
                     di as text "Loading the local version (GMD_`selected_version')."
                     qui use `"`target_file'"', clear
                     local saved_gmd "yes"
@@ -839,26 +852,21 @@ program define gmd, rclass
             }
             else {
                 * Default: load the most recent local version
-                local best = 0
                 local local_version ""
                 local local_file ""
-                local localfiles : dir `"`datadir'"' files "GMD_*.dta"
-                foreach f of local localfiles {
-                    local v = subinstr(subinstr(`"`f'"', "GMD_", "", 1), ".dta", "", 1)
-                    local vnum = real(subinstr("`v'", "_", "", 1))
-                    if `vnum' > `best' {
-                        local best = `vnum'
-                        local local_version "`v'"
-                        local local_file `"`f'"'
-                    }
+                gmd_local_versions `"`datadir'"'
+                if "`r(latest)'" != "" {
+                    local local_version "`r(latest)'"
+                    local local_file "GMD_`r(latest)'.dta"
                 }
+                local best = real(subinstr("`local_version'", "_", "", 1))
                 if `"`local_file'"' != "" {
                     di as text "Loading the local version (GMD_`local_version')."
                     qui use `"`datadir'/`local_file'"', clear
                     local saved_gmd "yes"
                     local gmd_df `"`datadir'/`local_file'"'
                     local selected_version "`local_version'"
-                    if "`latest_version'" != "" & `best' > 0 {
+                    if "`latest_version'" != "" & !missing(`best') {
                         local latestnum = real(subinstr("`latest_version'", "_", "", 1))
                         if `latestnum' > `best' {
                             di as text "A newer version (GMD_`latest_version') is available."
@@ -1083,6 +1091,15 @@ program define gmd, rclass
         local inc_in = subinstr(`"`inc_in'"', ",", " ", .)
         local inc_in = trim(itrim(`"`inc_in'"'))
 
+        * Accept income_group stored as a string or as a value-labelled number
+        local incvar "income_group"
+        cap confirm string variable income_group
+        if _rc != 0 {
+            tempvar inc_str
+            qui decode income_group, gen(`inc_str')
+            local incvar "`inc_str'"
+        }
+
         qui gen byte keep_income = 0
         local invalid_income ""
         foreach tok of local inc_in {
@@ -1101,7 +1118,7 @@ program define gmd, rclass
             }
 
             if "`cval'" != "" {
-                qui replace keep_income = 1 if income_group == "`cval'"
+                qui replace keep_income = 1 if `incvar' == "`cval'"
             }
             else {
                 local invalid_income "`invalid_income' `tok'"
@@ -1126,6 +1143,7 @@ program define gmd, rclass
         }
         qui keep if keep_income == 1
         qui drop keep_income
+        if "`incvar'" != "income_group" qui drop `incvar'
 
         * income_group is a helper column. Drop it when the user requested a
         * specific varlist so the result mirrors a plain variable selection.
@@ -1301,4 +1319,60 @@ program define gmd_resolve_vars, rclass
     local invalid = trim("`invalid'")
     return local resolved "`resolved'"
     return local invalid "`invalid'"
+end
+
+********************************************************************************
+* Helper: list the GMD versions stored in a folder
+* Only files named exactly GMD_YYYY_MM.dta count, so backups or renamed copies
+* (GMD_backup.dta, GMD_2025_09_old.dta) are never taken for a release.
+* Returns r(versions) (oldest first) and r(latest).
+********************************************************************************
+program define gmd_local_versions, rclass
+    args dir
+    if `"`dir'"' == "" exit
+    local files : dir `"`dir'"' files "GMD_*.dta"
+    local versions ""
+    foreach f of local files {
+        if regexm(`"`f'"', "^GMD_([0-9][0-9][0-9][0-9]_(0[1-9]|1[0-2]))[.]dta$") {
+            local versions "`versions' `=regexs(1)'"
+        }
+    }
+    local versions : list sort versions
+    local n : word count `versions'
+    return local versions "`versions'"
+    if `n' > 0 {
+        local latest : word `n' of `versions'
+        return local latest "`latest'"
+    }
+end
+
+********************************************************************************
+* Helper: find GMD_<version>.dta in the first folder that holds it
+* Returns r(file), the full path, or nothing.
+********************************************************************************
+program define gmd_find_version, rclass
+    syntax anything(name=ver) [, dirs(string asis)]
+    foreach d of local dirs {
+        if `"`d'"' == "" continue
+        cap confirm file `"`d'/GMD_`ver'.dta"'
+        if _rc == 0 {
+            return local file `"`d'/GMD_`ver'.dta"'
+            exit
+        }
+    }
+end
+
+********************************************************************************
+* Helper: is the published package version newer than the installed one?
+* Versions are compared numerically (2.10.0 > 2.9.0), so a development copy
+* ahead of the published package is never told to update to an older release.
+********************************************************************************
+program define gmd_newer, rclass
+    args published installed
+    foreach v in published installed {
+        local parts = subinstr("``v''", ".", " ", .)
+        tokenize `parts'
+        local `v'_num = real("`1'") * 1e6 + real("0`2'") * 1e3 + real("0`3'")
+    }
+    return scalar newer = (!missing(`published_num') & `published_num' > `installed_num')
 end

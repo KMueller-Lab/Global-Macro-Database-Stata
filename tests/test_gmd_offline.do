@@ -48,6 +48,28 @@ qui save "`scratch'/offline/GMD_2025_08.dta", replace
 char _dta[gmd_version] "2026_01"
 qui replace year = year + 1 in 1
 qui save "`scratch'/offline/GMD_2026_01.dta", replace
+
+* Files that are not releases: a backup and an impossible month. Neither may be
+* taken for the most recent version.
+use "`scratch'/data/GMD_2025_09.dta" in 1/5, clear
+char _dta[gmd_test_marker] "not_a_release"
+qui save "`scratch'/offline/GMD_backup.dta", replace
+qui save "`scratch'/offline/GMD_2099_13.dta", replace
+
+* A release with income_group stored as a value-labelled number (2026_02)
+* (2025_09 predates income_group, so the column is built here)
+use ISO3 year id countryname nGDP if inlist(ISO3, "USA", "MWI", "IND") using "`scratch'/data/GMD_2025_09.dta", clear
+gen income_group = cond(ISO3 == "USA", "High income", cond(ISO3 == "IND", "Lower middle income", "Low income"))
+encode income_group, gen(inc_num)
+drop income_group
+rename inc_num income_group
+qui save "`scratch'/offline/GMD_2026_02.dta", replace
+
+* A project folder holding only another version, next to the remembered folder
+cap mkdir "`scratch'/offline_proj"
+use "`scratch'/data/GMD_2025_09.dta" if ISO3 == "USA" & inrange(year, 2000, 2004), clear
+char _dta[gmd_test_marker] "proj_2024_01"
+qui save "`scratch'/offline_proj/GMD_2024_01.dta", replace
 clear
 
 local old_proxy "`c(httpproxy)'"
@@ -74,6 +96,42 @@ check `=_rc==0 & "`r(version)'"=="2026_06"' "most recent local version loads off
 check `="`: char _dta[gmd_test_marker]'"=="fake_2026_06"' "the newest file was loaded"
 cap noi gmd nGDP, version(current) country(USA) years(2000)
 check `=_rc==0 & "`r(version)'"=="2026_06"' "version(current) reports the loaded version"
+
+di _n "=== offline: pinned version in the remembered folder, other version in cwd"
+tempname pf
+file open `pf' using "`scratch'/personal/gmd_datadir.txt", write replace text
+file write `pf' "`scratch'/offline" _n
+file close `pf'
+cd "`scratch'/offline_proj"
+cap noi gmd nGDP, version(2026_06) country(USA)
+check `=_rc==0 & "`r(version)'"=="2026_06"' "pinned version found in the remembered folder"
+check `="`: char _dta[gmd_test_marker]'"=="fake_2026_06"' "the remembered folder's file was loaded"
+cap noi gmd nGDP, country(USA)
+check `=_rc==0 & "`r(version)'"=="2024_01"' "without version() the project copy in cwd wins"
+cd "`scratch'/offline"
+erase "`scratch'/personal/gmd_datadir.txt"
+
+di _n "=== income() on an encoded income_group"
+cap noi gmd nGDP, version(2026_02) income(H)
+qui levelsof ISO3, local(isos) clean
+check `=_rc==0 & "`isos'"=="USA"' "income(H) works when income_group is value-labelled"
+
+di _n "=== save() with calls that do not load the main dataset"
+cap noi gmd nGDP, raw save()
+check `=_rc==198' "save() with raw rejected"
+cap noi gmd, vars(list) save()
+check `=_rc==198' "save() with vars(list) rejected"
+
+di _n "=== package update notice compares versions numerically"
+* Subprograms of an ado-file are private to it; run the file to call one.
+cap program drop gmd_unchanged gmd_resolve_vars gmd_local_versions gmd_find_version gmd_newer
+qui run "`root'/stata/gmd.ado"
+gmd_newer "2.0.0" "2.1.0"
+check `=r(newer)==0' "older published version gives no update notice"
+gmd_newer "2.10.0" "2.9.1"
+check `=r(newer)==1' "2.10.0 is newer than 2.9.1"
+gmd_newer "" "2.1.0"
+check `=r(newer)==0' "missing published version gives no notice"
 
 di _n "=== release stamp and data signature"
 cap noi gmd, version(2026_03)

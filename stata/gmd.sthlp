@@ -1,5 +1,5 @@
 {smcl}
-{* *! version 2.0.0}{...}
+{* *! version 2.1.0 29sep2026}{...}
 {vieweralsosee "" "--"}{...}
 {viewerjumpto "Syntax" "gmd##syntax"}{...}
 {viewerjumpto "Description" "gmd##description"}{...}
@@ -16,7 +16,7 @@
 {title:Syntax}
 
 {p 8 17 2}
-{cmdab:gmd} [{it:varlist}] [{cmd:,} {cmdab:v:ersion(}{it:YYYY_MM|current|list}{cmd:)} {cmdab:co:untry(}{it:string|load|list}{cmd:)} {cmdab:y:ears(}{it:numlist}{cmd:)} {cmdab:inc:ome(}{it:string}{cmd:)} {cmdab:r:aw} {cmdab:var:s(}{it:load|list}{cmd:)} {cmdab:s:ources(}{it:string|load|list}{cmd:)} {cmdab:cite(}{it:string|load}{cmd:)} {cmdab:print(}{it:string}{cmd:)} {cmdab:network(}{it:string}{cmd:)} {cmd:save(}{it:string}{cmd:)} {cmd:clear}]
+{cmdab:gmd} [{it:varlist}] [{cmd:,} {cmdab:ve:rsion(}{it:YYYY_MM|current|list}{cmd:)} {cmdab:cou:ntry(}{it:string|load|list}{cmd:)} {cmdab:y:ears(}{it:numlist}{cmd:)} {cmdab:inc:ome(}{it:string}{cmd:)} {cmdab:r:aw} {cmd:vars(}{it:load|list}{cmd:)} {cmdab:s:ources(}{it:string|load|list}{cmd:)} {cmd:cite(}{it:string|load}{cmd:)} {cmd:print(}{it:string}{cmd:)} {cmdab:n:etwork(}{it:string}{cmd:)} {cmd:save(}[{it:folder}] [{cmd:,} {cmd:replace}]{cmd:)} {cmd:clear}]
 
 {marker description}{...}
 {title:Description}
@@ -42,8 +42,10 @@ For a summary of what changed between data versions, see the release notes at
 {browse "https://www.globalmacrodata.com/data#release-notes"}.
 
 {pstd}
-When a {it:varlist} is specified, the command automatically drops observations
-where all specified variables are missing to save memory. Variables that are
+When a {it:varlist} is specified, the command drops, for each country, the
+years before the first year in which any of the specified variables is
+available. Later years in which all specified variables are missing are
+kept, so the panel has no internal gaps. Variables that are
 entirely missing in the returned sample (for example a series that does not
 exist for the requested country) are dropped as well, so check
 {cmd:r(varlist)} if later code relies on a particular variable being present.
@@ -108,7 +110,7 @@ Type {cmd:gmd, cite(load)} to load the full list of sources and their citation k
 {cmd:network(}{it:string}{cmd:)} bypasses the internet connection check and forces the command to attempt a connection. Use this if the automatic check fails but you have internet access. Any argument switches the bypass on ({cmd:network(yes)} is the convention); omit the option to leave the check in place.{p_end}
 
 {phang}
-{cmd:save(}[{it:folder}] [{cmd:,} {cmd:replace}]{cmd:)} downloads the selected version and saves it locally so it can be reloaded without downloading again. Specify a full path to an existing folder, e.g. {cmd:save("/full/path")}, or {cmd:save()} to use the current working directory. The file is named {cmd:GMD_}{it:YYYY_MM}{cmd:.dta}, where {it:YYYY_MM} is the data version (e.g. {cmd:GMD_2025_09.dta}). If that file already exists, {cmd:gmd} stops with an error unless {cmd:replace} is added, e.g. {cmd:save("/full/path", replace)} or {cmd:save(replace)}. The chosen folder is remembered for future {cmd:gmd} calls; see {help gmd##storage:Local storage, versions, and internet access}.{p_end}
+{cmd:save(}[{it:folder}] [{cmd:,} {cmd:replace}]{cmd:)} downloads the selected version and saves it locally so it can be reloaded without downloading again. Specify a full path to an existing folder, e.g. {cmd:save("/full/path")}, or {cmd:save()} to use the current working directory. The file is named {cmd:GMD_}{it:YYYY_MM}{cmd:.dta}, where {it:YYYY_MM} is the data version (e.g. {cmd:GMD_2025_09.dta}). If that file already exists, {cmd:gmd} stops with an error unless {cmd:replace} is added, e.g. {cmd:save("/full/path", replace)} or {cmd:save(replace)}. A relative folder, e.g. {cmd:save("data")}, is taken relative to the current working directory and remembered as the full path. {cmd:save()} applies only when loading the main dataset; it cannot be combined with {cmd:raw}, {cmd:sources()}, {cmd:cite()}, {cmd:vars()}, {cmd:country(list)}, {cmd:country(load)}, or {cmd:version(list)}. The chosen folder is remembered for future {cmd:gmd} calls; see {help gmd##storage:Local storage, versions, and internet access}.{p_end}
 
 {phang}
 {cmd:clear} permits replacing the data currently in memory. Like Stata's own {cmd:use}, {cmd:gmd} refuses to load data when there are unsaved changes in memory; specify {cmd:clear} to proceed and discard them. Data returned by {cmd:gmd} itself is not counted as unsaved work, so consecutive {cmd:gmd} calls do not need {cmd:clear}. Display-only calls such as {cmd:gmd, vars(list)} never touch the data in memory.{p_end}
@@ -128,12 +130,15 @@ directories. Delete {cmd:gmd_datadir.txt} to make {cmd:gmd} forget the folder.
 {pstd}
 {bf:Which copy is loaded.} On every call {cmd:gmd} looks for local data before
 downloading, in this order: (1) the current working directory, if it contains
-any {cmd:GMD_*.dta} file; (2) the folder recorded by the last {cmd:save()}.
-Without {cmd:version()}, the most recent {cmd:GMD_*.dta} in that folder is
-loaded and the message "Loading the local version (GMD_{it:YYYY_MM})" is
-shown; if a newer version exists online, a note says so. With
-{cmd:version()}, the file for that version is loaded if present and
-downloaded otherwise (without being saved unless {cmd:save()} is given).
+a GMD file; (2) the folder recorded by the last {cmd:save()}. Only files named
+exactly {cmd:GMD_}{it:YYYY_MM}{cmd:.dta} count; other names, such as
+{cmd:GMD_backup.dta}, are ignored. Without {cmd:version()}, the most recent
+version in the first of these folders that holds one is loaded and the
+message "Loading the local version (GMD_{it:YYYY_MM})" is shown; if a newer
+version exists online, a note says so. With {cmd:version()}, the file for
+that version is looked for in the working directory and then in the
+remembered folder, and downloaded if neither holds it (without being saved
+unless {cmd:save()} is given).
 The loaded version is always printed at the end of the output.
 
 {pstd}
@@ -322,5 +327,5 @@ For license enquiries, please email {browse "mailto:kmueller@globalmacrodata.com
 {title:Version}
 
 {pstd}
-This is version 2.0.0 of {cmd:gmd}.
+This is version 2.1.0 of {cmd:gmd}.
 {p_end}

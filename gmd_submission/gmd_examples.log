@@ -1,40 +1,53 @@
---------------------------------------------------------------------------------------
+-------------------------------------------------------------------------------
       name:  <unnamed>
-       log:  /Users/mohamedlehbib/Downloads/gmd_examples.log
+       log:  /Users/mohamedlehbib/Downloads/GitHub/Global-Macro-Database-Stata/
+> gmd_submission/gmd_examples.log
   log type:  text
- opened on:  23 Jan 2026, 17:32:51
+ opened on:  29 Sep 2026, 21:29:00
+
+. clear all
+
+. set more off
+
+. version 15
 
 . 
-. * Install required packages
-. ssc install missings, replace
-checking missings consistency and verifying not already installed...
-installing into /Users/mohamedlehbib/Library/Application Support/Stata/ado/plus/...
-installation complete.
+. * The current directory comes before PLUS on the ado-path, so this is the
+. * submitted gmd.ado; which shows its version line
+. discard
 
-. ssc install gmd, replace
-checking gmd consistency and verifying not already installed...
-installing into /Users/mohamedlehbib/Library/Application Support/Stata/ado/plus/...
-installation complete.
+. which gmd
+./gmd.ado
+*! version 2.1.0 29sep2026 Mohamed Lehbib and Karsten Müller
 
-. net install binsreg, from(https://raw.githubusercontent.com/nppackages/binsreg/maste
-> r/stata) replace
+. 
+. * Packages used by the examples (not needed by gmd itself)
+. net install binsreg, from(https://raw.githubusercontent.com/nppackages/binsre
+> g/main/stata) replace
 checking binsreg consistency and verifying not already installed...
-installing into /Users/mohamedlehbib/Library/Application Support/Stata/ado/plus/...
+installing into /private/tmp/claude-501/-Users-mohamedlehbib-Downloads-GitHub-G
+> lobal-Macro-Database-Stata/048d5ae7-f60b-40d5-bd3d-a46b714362a8/scratchpad/ex
+> run/plus/...
 installation complete.
 
 . ssc install winsor2, replace
 checking winsor2 consistency and verifying not already installed...
-installing into /Users/mohamedlehbib/Library/Application Support/Stata/ado/plus/...
+installing into /private/tmp/claude-501/-Users-mohamedlehbib-Downloads-GitHub-G
+> lobal-Macro-Database-Stata/048d5ae7-f60b-40d5-bd3d-a46b714362a8/scratchpad/ex
+> run/plus/...
 installation complete.
 
 . 
-. *------------------------------------------------------------------------------
+. *----------------------------------------------------------------------------
+> --
 . * Example 1: Revisiting Okun's Law
-. *------------------------------------------------------------------------------
+. *----------------------------------------------------------------------------
+> --
 . 
-. * Download unemployment and real GDP data
+. * Load unemployment and real GDP data from the pinned 2025_09 version
 . gmd unemp rGDP, version(2025_09)
-Global Macro Database by Müller et al. (2025)
+Loading the local version (GMD_2025_09).
+Global Macro Database by Müller, Xu, Lehbib, and Chen (2025)
 Website: https://www.globalmacrodata.com
 
 When using these data, please cite:
@@ -43,9 +56,22 @@ When using these data, please cite:
 When using the gmd Stata command, please further cite:
 [BibTeX code]  [APA-style citation]
 
-To save the data locally for faster reloading, use: gmd, fast(yes)
 Final dataset: 23574 observations for 2 variables
 Version: 2025_09
+
+. return list
+
+scalars:
+           r(verified) =  0
+                  r(k) =  6
+                  r(N) =  23574
+
+macros:
+             r(origin) : "local"
+           r(filename) : "/Users/mohamedlehbib/Downloads/GitHub/Global-Macr.."
+      r(datasignature) : "57021:71(75734):3567195823:1533378276"
+            r(version) : "2025_09"
+            r(varlist) : "rGDP unemp"
 
 . 
 . * Set panel structure
@@ -68,9 +94,9 @@ Panel variable: id (unbalanced)
 >     scheme(sj)
 Sorting dataset on rGDP_gr...
 Note: This step is omitted if dataset already sorted by rGDP_gr.
-Warning: To speed up computation, bin/degree selection uses a subsample of roughly max
-> (5,000, 0.01n) observations if the sample size n>5,000. To use the full sample, set 
-> randcut(1).
+Warning: To speed up computation, bin/degree selection uses a subsample of roug
+> hly max(5,000, 0.01n) observations if the sample size n>5,000. To use the ful
+> l sample, set randcut(1).
 
 Binscatter plot
 Bin selection method: IMSE-optimal plug-in choice (select # of bins)
@@ -85,30 +111,34 @@ Derivative: 0
 Bin/Degree selection:         | 
          Degree of polynomial |       0
   # of smoothness constraints |       0
-                    # of bins |      25
-                 imse, bias^2 |  33.971
-                   imse, var. |  35.823
+                    # of bins |      24
+                 imse, bias^2 |  30.091
+                   imse, var. |  34.749
 ----------------------------------------------
 
 ----------------------------------------
          |      p       s       df
 ---------+------------------------------
- dots    |      0       0       25
+ dots    |      0       0       24
 ----------------------------------------
 
 . 
 . * Export graph with Stata Journal scheme
-. graph export okun_law.pdf, replace 
-file /Users/mohamedlehbib/Downloads/okun_law.pdf saved as PDF format
+. graph export okun_law.pdf, replace
+file okun_law.pdf saved as PDF format
 
 . 
-. *------------------------------------------------------------------------------
+. *----------------------------------------------------------------------------
+> --
 . * Example 2: Two Eras of Money and Inflation
-. *------------------------------------------------------------------------------
+. *----------------------------------------------------------------------------
+> --
 . 
-. * Download money supply and inflation data
-. gmd M2 infl, version(2025_09)
-Global Macro Database by Müller et al. (2025)
+. * Load money supply and inflation data. clear discards the variables created
+. * in Example 1, as with use, clear.
+. gmd M2 infl, version(2025_09) clear
+Loading the local version (GMD_2025_09).
+Global Macro Database by Müller, Xu, Lehbib, and Chen (2025)
 Website: https://www.globalmacrodata.com
 
 When using these data, please cite:
@@ -117,7 +147,6 @@ When using these data, please cite:
 When using the gmd Stata command, please further cite:
 [BibTeX code]  [APA-style citation]
 
-To save the data locally for faster reloading, use: gmd, fast(yes)
 Final dataset: 27636 observations for 2 variables
 Version: 2025_09
 
@@ -195,10 +224,12 @@ corr(u_i, Xb) = 0.3564                          Prob > F          =     0.0000
 ------------------------------------------------------------------------------
 
 . 
-. *------------------------------------------------------------------------------
+. *----------------------------------------------------------------------------
+> --
 . log close
       name:  <unnamed>
-       log:  /Users/mohamedlehbib/Downloads/gmd_examples.log
+       log:  /Users/mohamedlehbib/Downloads/GitHub/Global-Macro-Database-Stata/
+> gmd_submission/gmd_examples.log
   log type:  text
- closed on:  23 Jan 2026, 17:33:27
---------------------------------------------------------------------------------------
+ closed on:  29 Sep 2026, 21:29:11
+-------------------------------------------------------------------------------
