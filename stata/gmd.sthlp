@@ -6,6 +6,7 @@
 {viewerjumpto "Options" "gmd##options"}{...}
 {viewerjumpto "Local storage, versions, and internet access" "gmd##storage"}{...}
 {viewerjumpto "Examples" "gmd##examples"}{...}
+{viewerjumpto "Stored results" "gmd##results"}{...}
 {title:Title}
 
 {phang}
@@ -42,7 +43,17 @@ For a summary of what changed between data versions, see the release notes at
 
 {pstd}
 When a {it:varlist} is specified, the command automatically drops observations
-where all specified variables are missing to save memory.
+where all specified variables are missing to save memory. Variables that are
+entirely missing in the returned sample (for example a series that does not
+exist for the requested country) are dropped as well, so check
+{cmd:r(varlist)} if later code relies on a particular variable being present.
+
+{pstd}
+Variable names in {it:varlist} are matched without regard to case
+({cmd:gmd ngdp} loads {cmd:nGDP}) and may contain the wildcards {cmd:*} and
+{cmd:?} ({cmd:gmd *_GDP}). Abbreviations are not accepted. The keywords
+{cmd:list}, {cmd:load}, and {cmd:current}, as well as source names and ISO3
+codes, are likewise case-insensitive.
 
 {marker options}{...}
 {title:Options}
@@ -52,10 +63,11 @@ where all specified variables are missing to save memory.
 The GMD is released on a quarterly basis.
 Specifying a version allows for reproducibility of empirical results; the
 loaded version is always printed at the end of the output.
-Type {cmd:version(current)} to load the most recent version explicitly.
+Type {cmd:version(current)} to load the most recent version explicitly; the output and {cmd:r(version)} then show the version this resolved to.
 To see a list of all available historical versions, type {cmd:gmd, version(list)}.
 For a summary of changes between versions, see {browse "https://www.globalmacrodata.com/data#release-notes":the release notes}.
-If a local copy of the requested version exists (see {cmd:save()}), it is loaded; otherwise the version is downloaded.
+If a local copy of the requested version exists (see {cmd:save()}), it is loaded without any internet access; otherwise the version is downloaded.
+A requested version is never replaced by another one: if it is neither stored locally nor downloadable, {cmd:gmd} stops with an error.
 {p_end}
 
 {phang}
@@ -81,7 +93,9 @@ This option is implicit when using {cmd:sources()}.{p_end}
 {phang}
 {cmd:sources(}{it:string|load|list}{cmd:)} loads cleaned raw data for a specific source (e.g., IMF_IFS). Requires specifying exactly one source name. 
 Type {cmd:gmd, sources(list)} to see a list or {cmd:gmd, sources(load)} to load them into the data frame.
-You can specify a {it:varlist} with this option to load only specific variables from that source.{p_end}
+You can specify a {it:varlist} with this option to load only specific variables from that source, and {cmd:country()} to keep only some countries.
+Source datasets are not archived by version: {cmd:sources()} always returns the latest available file and cannot be combined with {cmd:version()}.
+To obtain the source values that entered a given release, use {cmd:raw} with {cmd:version()}, e.g. {cmd:gmd nGDP, raw version(2025_09)}, which returns one column per source for that variable.{p_end}
 
 {phang}
 {cmd:cite(}{it:string|load}{cmd:)} generates BibTeX citations for a specific source key, which can be easily copy-pasted.
@@ -91,7 +105,7 @@ Type {cmd:gmd, cite(load)} to load the full list of sources and their citation k
 {cmd:print(}{it:GMD|Stata}{cmd:)} displays APA and BibTeX style citations for the {cmd:GMD} database or the {cmd:gmd} Stata command. This is primarily used by the command's interactive links.{p_end}
 
 {phang}
-{cmd:network(}{it:string}{cmd:)} bypasses the internet connection check and forces the command to attempt a connection. Use this if the automatic check fails but you have internet access.{p_end}
+{cmd:network(}{it:string}{cmd:)} bypasses the internet connection check and forces the command to attempt a connection. Use this if the automatic check fails but you have internet access. Any argument switches the bypass on ({cmd:network(yes)} is the convention); omit the option to leave the check in place.{p_end}
 
 {phang}
 {cmd:save(}[{it:folder}] [{cmd:,} {cmd:replace}]{cmd:)} downloads the selected version and saves it locally so it can be reloaded without downloading again. Specify a full path to an existing folder, e.g. {cmd:save("/full/path")}, or {cmd:save()} to use the current working directory. The file is named {cmd:GMD_}{it:YYYY_MM}{cmd:.dta}, where {it:YYYY_MM} is the data version (e.g. {cmd:GMD_2025_09.dta}). If that file already exists, {cmd:gmd} stops with an error unless {cmd:replace} is added, e.g. {cmd:save("/full/path", replace)} or {cmd:save(replace)}. The chosen folder is remembered for future {cmd:gmd} calls; see {help gmd##storage:Local storage, versions, and internet access}.{p_end}
@@ -138,16 +152,20 @@ that a version that is absent locally is downloaded rather than silently
 replaced by another.
 
 {pstd}
-{bf:When internet access is needed.} Every call first fetches the list of
+{bf:When internet access is needed.} A call that pins a version which is
+stored locally, e.g. {cmd:gmd nGDP, version(2025_09)}, reads that file and
+does not use the internet at all. Every other call first fetches the list of
 available versions to validate {cmd:version()} and to check for updates.
 Internet access is required to download the dataset (any call without a local
 copy, or with {cmd:save()}), and for {cmd:raw}, {cmd:sources()},
 {cmd:cite()}, {cmd:vars()}, and {cmd:country(list)} or {cmd:country(load)},
 which read helper files from the GMD server. Without internet access,
-{cmd:gmd} reports that the version list could not be reached and loads the
-most recent local copy from the folders above if one exists; otherwise it
-stops with an error. If the version check fails although you are online,
-add {cmd:network(yes)}.
+{cmd:gmd} reports that the version list could not be reached. If no version
+is pinned (or {cmd:version(current)} is given), it loads the most recent
+local copy from the folders above if one exists and stops with an error
+otherwise. If a version is pinned and that file is not stored locally, it
+stops with an error rather than loading a different version. If the version
+check fails although you are online, add {cmd:network(yes)}.
 
 {marker examples}{...}
 {title:Examples}
@@ -184,6 +202,42 @@ add {cmd:network(yes)}.
 
 {phang}10. Combine filters: upper- and lower-middle-income countries since 2010:{p_end}
 {phang2}{cmd:. gmd nGDP pop, income(UM LM) years(2010/2024)}
+
+{marker results}{...}
+{title:Stored results}
+
+{pstd}
+When {cmd:gmd} loads data into memory (the main dataset, {cmd:raw}, or
+{cmd:sources()}), it stores the following in {cmd:r()}:
+
+{synoptset 16 tabbed}{...}
+{p2col 5 16 20 2: Scalars}{p_end}
+{synopt:{cmd:r(N)}}number of observations{p_end}
+{synopt:{cmd:r(k)}}number of variables{p_end}
+{synopt:{cmd:r(verified)}}1 if the file carried a release signature and it was confirmed, 0 if it carried none (main dataset only){p_end}
+
+{p2col 5 16 20 2: Macros}{p_end}
+{synopt:{cmd:r(version)}}data version that was loaded, as {it:YYYY_MM} (main dataset and {cmd:raw}){p_end}
+{synopt:{cmd:r(datasignature)}}data signature of the full release file, computed before any filtering (main dataset only); see {helpb datasignature}{p_end}
+{synopt:{cmd:r(sources)}}name of the source that was loaded ({cmd:sources()} only){p_end}
+{synopt:{cmd:r(varlist)}}variables in memory other than {cmd:ISO3}, {cmd:year}, {cmd:id}, and {cmd:countryname}{p_end}
+{synopt:{cmd:r(origin)}}{cmd:local} if the data were read from a saved copy, {cmd:download} otherwise{p_end}
+{synopt:{cmd:r(filename)}}full path of the local file that was read or written, if any{p_end}
+{p2colreset}{...}
+
+{pstd}
+A do-file can use these to guard against loading the wrong vintage, e.g.
+{cmd:assert "`r(version)'" == "2025_09"}.
+
+{pstd}
+{bf:Data signatures.} Release files may carry the version they belong to and a
+data signature set when the file was built. {cmd:gmd} checks both on the full
+file before filtering and stops with an error if a local file was renamed to
+another version or edited after its release; {cmd:r(verified)} is then 1 and
+the signature is shown in the output. {cmd:r(datasignature)} is returned for
+every release, signed or not, so it can be recorded in a do-file or paper and
+compared later: the same signature means the same data. The signature is
+removed from a filtered result, since it describes the full release.
 
 {title:Authors}
 

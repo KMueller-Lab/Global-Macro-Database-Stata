@@ -118,6 +118,8 @@ check `=r(N)==0' "income(Low income) full load keeps only Low income"
 di _n "=== error paths"
 cap noi gmd nGDP, sources(IMF_IFS) years(2000)
 check `=_rc==198' "sources()+years() rejected"
+cap noi gmd, sources(IMF_IFS) version(2025_09)
+check `=_rc==198' "sources()+version() rejected"
 cap noi gmd nGDP, raw income(H)
 check `=_rc==198' "raw+income() rejected"
 cap noi gmd notavar
@@ -153,6 +155,74 @@ check `=_N==2' "raw USA 2000-2001"
 di _n "=== sources(IMF_WEO) nGDP"
 gmd nGDP, sources(IMF_WEO) country(USA)
 check `=_N>0' "sources(IMF_WEO) nGDP USA"
+
+* ---- stored results and reported version ----
+di _n "=== stored results"
+gmd nGDP pop, version(2025_09) country(USA) years(2000/2001)
+check `="`r(version)'"=="2025_09"' "r(version) is the loaded version"
+check `=r(N)==2 & r(k)==6' "r(N) and r(k)"
+check `="`r(varlist)'"=="nGDP pop"' "r(varlist) lists the data variables"
+check `="`r(origin)'"=="local"' "r(origin) is local for a saved copy"
+gmd nGDP, version(current) country(USA) years(2000)
+check `=regexm("`r(version)'", "^[0-9][0-9][0-9][0-9]_[0-9][0-9]$")' "version(current) resolves to YYYY_MM"
+gmd nGDP, raw version(2025_09) country(USA) years(2000)
+check `="`r(version)'"=="2025_09" & "`r(origin)'"=="download"' "raw returns r(version), origin download"
+
+* ---- case-insensitive input and wildcards ----
+di _n "=== case-insensitive input"
+gmd ngdp CPI Pop, version(2025_09) country(usa) years(2000)
+check `="`r(varlist)'"=="nGDP CPI pop"' "variable names resolved up to case"
+gmd *_gdp, version(2025_09) country(USA) years(2000)
+cap confirm variable CA_GDP exports_GDP, exact
+check `=_rc==0' "wildcard *_gdp expands"
+cap noi gmd unem, version(2025_09)
+check `=_rc==498' "abbreviation unem rejected"
+cap noi gmd nGDP notavar, version(2025_09)
+check `=_rc==498' "one invalid name among valid ones rejected"
+gmd nGDP, version(Current) country(USA) years(2000)
+check `=_rc==0' "version(Current) accepted"
+cap noi gmd, country(LIST)
+check `=_rc==0 & c(changed)==0' "country(LIST) lists without loading"
+cap noi gmd, version(LIST)
+check `=_rc==0' "version(LIST) accepted"
+cap noi gmd nGDP, vars(banana)
+check `=_rc==198' "unknown vars() argument rejected"
+cap noi gmd nGDP, version(2025_09 2025_12)
+check `=_rc==198' "multi-word version() returns an error code"
+
+* ---- sources(): country filter, several variables, names ----
+di _n "=== sources() fixes"
+gmd, sources(imf_weo) country(usa fra)
+local rsources "`r(sources)'"
+qui levelsof ISO3, local(isos) clean
+check `="`isos'"=="FRA USA"' "sources() without varlist honours country() with several codes"
+check `="`rsources'"=="IMF_WEO"' "r(sources) holds the corrected source name"
+gmd ngdp POP, sources(IMF_WEO) country(USA)
+cap confirm variable IMF_WEO_nGDP IMF_WEO_pop, exact
+check `=_rc==0 & c(k)==4' "sources() accepts several variables, up to case"
+cap noi gmd nGDP, sources(IMF_WEO) country(ZZZ)
+check `=_rc==498' "sources() invalid country rejected"
+cap noi gmd nGDP, sources(IMF_WEO) country(USA ZZZ)
+check `=_rc==498' "sources() one invalid country among several rejected"
+cap noi gmd nGDP banana, sources(IMF_WEO)
+check `=_rc==498' "sources() invalid variable returns an error code"
+gmd nGDP, sources(cs1_usa)
+cap confirm variable CS1_nGDP, exact
+check `=_rc==0' "sources(cs1_usa) with a variable"
+gmd infl, sources(BIS_CPI) country(USA)
+cap confirm variable BIS_infl, exact
+check `=_rc==0' "source whose variables use another prefix"
+
+* ---- raw: name lookup and restore on error ----
+di _n "=== raw fixes"
+gmd ngdp, raw country(USA) years(2000)
+check `=_N==1' "raw variable resolved up to case"
+cap noi gmd banana, raw
+check `=_rc==498' "raw invalid variable rejected"
+gmd pop, version(2025_09) country(USA) years(2000)
+cap noi gmd nGDP, raw country(ZZZ)
+cap confirm variable pop, exact
+check `=_rc==0 & _N==1' "failed raw filter restores the previous data"
 
 * ---- load helpers ----
 gmd, country(load)
