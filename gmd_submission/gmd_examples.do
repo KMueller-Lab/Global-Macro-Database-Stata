@@ -1,24 +1,37 @@
 *==============================================================================
 * Stata Journal submission: gmd command examples
 * Author: Mohamed Lehbib
-* Date: January 2026
+* Date: September 2026
+*
+* Run from this folder. It holds the submitted gmd.ado and gmd.sthlp and the
+* data file GMD_2025_09.dta, so the examples use the submitted version of the
+* command and load the pinned data version from this folder without a
+* download. Do not reinstall gmd from SSC here: that could replace the version
+* under review.
 *==============================================================================
 
 capture log close
 log using gmd_examples.log, text replace
+clear all
+set more off
+version 15
 
-* Install required packages
-ssc install missings, replace
-ssc install gmd, replace
-net install binsreg, from(https://raw.githubusercontent.com/nppackages/binsreg/master/stata) replace
+* The current directory comes before PLUS on the ado-path, so this is the
+* submitted gmd.ado; which shows its version line
+discard
+which gmd
+
+* Packages used by the examples (not needed by gmd itself)
+net install binsreg, from(https://raw.githubusercontent.com/nppackages/binsreg/main/stata) replace
 ssc install winsor2, replace
 
 *------------------------------------------------------------------------------
 * Example 1: Revisiting Okun's Law
 *------------------------------------------------------------------------------
 
-* Download unemployment and real GDP data
+* Load unemployment and real GDP data from the pinned 2025_09 version
 gmd unemp rGDP, version(2025_09)
+return list
 
 * Set panel structure
 xtset id year
@@ -33,14 +46,15 @@ binsreg unemp rGDP_gr if rGDP_gr < 0.1 & rGDP_gr > -0.1, ///
     scheme(sj)
 
 * Export graph with Stata Journal scheme
-graph export okun_law.pdf, replace 
+graph export okun_law.pdf, replace
 
 *------------------------------------------------------------------------------
 * Example 2: Two Eras of Money and Inflation
 *------------------------------------------------------------------------------
 
-* Download money supply and inflation data
-gmd M2 infl, version(2025_09)
+* Load money supply and inflation data. clear discards the variables created
+* in Example 1, as with use, clear.
+gmd M2 infl, version(2025_09) clear
 
 * Set panel structure
 xtset id year
