@@ -222,6 +222,13 @@ check `=_rc==498' "sources() invalid variable returns an error code"
 gmd nGDP, sources(cs1_usa)
 cap confirm variable CS1_nGDP, exact
 check `=_rc==0' "sources(cs1_usa) with a variable"
+gmd CPI, sources(CS10_ITA)
+cap confirm variable CS10_CPI, exact
+check `=_rc==0 & c(k)==3' "sources(CS10_ITA) with a variable: two-digit slot"
+gmd, sources(cs10_ita)
+check `=_N>0 & "`r(sources)'"=="CS10_ITA"' "sources(cs10_ita) loads ITA_10"
+gmd, sources(ITA_10)
+check `=_N>0' "sources(ITA_10), the file name, still loads"
 gmd infl, sources(BIS_CPI) country(USA)
 cap confirm variable BIS_infl, exact
 check `=_rc==0' "source whose variables use another prefix"
