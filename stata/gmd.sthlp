@@ -26,7 +26,7 @@ This command downloads and loads the Global Macro Database (GMD), the
 world's most comprehensive repository of macroeconomic statistics. Users
 can specify which version to load, which variables to keep, and filter for
 specific countries, years, and income groups. Users can also download the underlying data, which means easy
-access to hundreds of cleaned data sources from the original providers. The dataset is
+access to the 167 cleaned data sources from the original providers. The dataset is
 updated quarterly, with occasional patches; versions follow the naming
 convention YYYY_MM. Like {cmd:use}, the command refuses to replace unsaved
 data in memory unless the {cmd:clear} option is specified.
@@ -61,7 +61,7 @@ codes, are likewise case-insensitive.
 {title:Options}
 
 {phang}
-{cmd:version(}{it:YYYY_MM|current|list}{cmd:)} specifies which version of the dataset to load (e.g., 2025_03).
+{cmd:version(}{it:YYYY_MM|current|list}{cmd:)} specifies which version of the dataset to load (e.g., 2026_09).
 The GMD is released on a quarterly basis.
 Specifying a version allows for reproducibility of empirical results; the
 loaded version is always printed at the end of the output.
@@ -97,7 +97,7 @@ This option is implicit when using {cmd:sources()}.{p_end}
 Type {cmd:gmd, sources(list)} to see a list or {cmd:gmd, sources(load)} to load them into the data frame.
 You can specify a {it:varlist} with this option to load only specific variables from that source, and {cmd:country()} to keep only some countries.
 Source datasets are not archived by version: {cmd:sources()} always returns the latest available file and cannot be combined with {cmd:version()}.
-To obtain the source values that entered a given release, use {cmd:raw} with {cmd:version()}, e.g. {cmd:gmd nGDP, raw version(2025_09)}, which returns one column per source for that variable.{p_end}
+To obtain the source values that entered a given release, use {cmd:raw} with {cmd:version()}, e.g. {cmd:gmd nGDP, raw version(2026_09)}, which returns one column per source for that variable.{p_end}
 
 {phang}
 {cmd:cite(}{it:string|load}{cmd:)} generates BibTeX citations for a specific source key, which can be easily copy-pasted.
@@ -158,7 +158,7 @@ replaced by another.
 
 {pstd}
 {bf:When internet access is needed.} A call that pins a version which is
-stored locally, e.g. {cmd:gmd nGDP, version(2025_09)}, reads that file and
+stored locally, e.g. {cmd:gmd nGDP, version(2026_09)}, reads that file and
 does not use the internet at all. Every other call first fetches the list of
 available versions to validate {cmd:version()} and to check for updates.
 Internet access is required to download the dataset (any call without a local
@@ -182,7 +182,7 @@ check fails although you are online, add {cmd:network(yes)}.
 {phang2}{cmd:. gmd, save()}
 
 {phang}2b. Save a specific version in a project folder, overwriting an existing file:{p_end}
-{phang2}{cmd:. gmd, version(2025_09) save("/full/folder/path", replace)}
+{phang2}{cmd:. gmd, version(2026_09) save("/full/folder/path", replace)}
 
 {phang}3. Load specific variables (e.g., Nominal GDP and Population):{p_end}
 {phang2}{cmd:. gmd nGDP pop}
@@ -190,8 +190,8 @@ check fails although you are online, add {cmd:network(yes)}.
 {phang}4. Load data for a specific country (e.g., Singapore):{p_end}
 {phang2}{cmd:. gmd, country(SGP)}
 
-{phang}5. Load a specific vintage (e.g., September 2025) for reproducibility:{p_end}
-{phang2}{cmd:. gmd, version(2025_09)}
+{phang}5. Load a specific vintage (e.g., September 2026) for reproducibility:{p_end}
+{phang2}{cmd:. gmd, version(2026_09)}
 
 {phang}6. Access raw data for a specific variable:{p_end}
 {phang2}{cmd:. gmd nGDP, raw}
@@ -206,7 +206,7 @@ check fails although you are online, add {cmd:network(yes)}.
 {phang2}{cmd:. gmd nGDP, income("High income")}
 
 {phang}10. Combine filters: upper- and lower-middle-income countries since 2010:{p_end}
-{phang2}{cmd:. gmd nGDP pop, income(UM LM) years(2010/2024)}
+{phang2}{cmd:. gmd nGDP pop, income(UM LM) years(2010/2025)}
 
 {marker results}{...}
 {title:Stored results}
@@ -232,7 +232,7 @@ When {cmd:gmd} loads data into memory (the main dataset, {cmd:raw}, or
 
 {pstd}
 A do-file can use these to guard against loading the wrong vintage, e.g.
-{cmd:assert "`r(version)'" == "2025_09"}.
+{cmd:assert "`r(version)'" == "2026_09"}.
 
 {pstd}
 {bf:Data signatures.} Release files may carry the version they belong to and a

@@ -2,7 +2,7 @@
 
 `gmd` is a Stata command that provides direct access to the [Global Macro Database (GMD)](https://www.globalmacrodata.com), the world's most comprehensive source of macroeconomic statistics.
 
-The GMD represents the largest macroeconomic database harmonizing and integrating more than 100 historical and modern sources into a single, consistent dataset. The `gmd` command allows you to download the latest version of the data, access historical vintages for reproducibility, and even retrieve the underlying cleaned raw data from more than 100 providers.
+The GMD represents the largest macroeconomic database harmonizing and integrating 167 sources (35 contemporary and 132 historical) into a single, consistent dataset. It covers 46 core macroeconomic variables (provided as 77 harmonized series) across 239 countries and territories, from 1086 until 2025, with projections through 2031. The `gmd` command allows you to download the latest version of the data, access historical vintages for reproducibility, and even retrieve the underlying cleaned raw data from each source.
 
 ## Installation
 
@@ -34,7 +34,7 @@ Simply typing `gmd` loads the complete dataset: the most recent local copy if yo
 
 | Option | Description |
 | --- | --- |
-| `version(YYYY_MM)` | Load a specific version of the database (e.g., `2025_03`) for reproducibility. `version(current)` loads the most recent online version. `version(list)` lists all available versions. |
+| `version(YYYY_MM)` | Load a specific version of the database (e.g., `2026_09`) for reproducibility. `version(current)` loads the most recent online version. `version(list)` lists all available versions. |
 | `country(ISO3)` | Filter data for specific countries (e.g., `USA`, `GBR`). `country(list)` lists available codes; `country(load)` loads the ISO3-to-name table. |
 | `years(numlist)` | Keep only the given years, e.g. `years(2000/2020)`. |
 | `income(group)` | Keep only countries in the given World Bank income group(s): `High income`, `Upper middle income`, `Lower middle income`, `Low income` (abbreviations `H`, `UM`, `LM`, `L` accepted). |
@@ -53,8 +53,8 @@ By default `gmd` downloads the data on every call and writes nothing to disk. `g
 
 ```stata
 cd "/path/to/project"
-gmd, version(2025_09) save()      // once: downloads and stores GMD_2025_09.dta here
-gmd nGDP pop, version(2025_09)    // in do-files: loads the local file, no download
+gmd, version(2026_09) save()      // once: downloads and stores GMD_2026_09.dta here
+gmd nGDP pop, version(2026_09)    // in do-files: loads the local file, no download
 ```
 
 A call that pins a version stored locally needs no internet access. Otherwise, internet access is needed for the version check at the start of the call, for downloads, and for `raw`, `sources()`, `cite()`, `vars()`, and `country()`. Offline, `gmd` loads the most recent local copy if one exists, and a pinned version that is not stored locally is an error rather than being replaced by another version. See `help gmd` for details.
@@ -76,9 +76,9 @@ gmd nGDP pop
 gmd, country(SGP)
 ```
 
-**4. Load a specific vintage (e.g., September 2025) for reproducibility:**
+**4. Load a specific vintage (e.g., September 2026) for reproducibility:**
 ```stata
-gmd, version(2025_09)
+gmd, version(2026_09)
 ```
 
 **5. Access raw data for a specific variable:**
@@ -93,7 +93,7 @@ gmd, sources(IMF_WEO)
 
 **7. Restrict to years and income groups:**
 ```stata
-gmd nGDP pop, income(UM LM) years(2010/2024)
+gmd nGDP pop, income(UM LM) years(2010/2025)
 ```
 
 **8. Save the latest version in the current working directory for reuse:**
