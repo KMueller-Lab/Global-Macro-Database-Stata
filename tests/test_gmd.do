@@ -229,6 +229,9 @@ gmd, sources(cs10_ita)
 check `=_N>0 & "`r(sources)'"=="CS10_ITA"' "sources(cs10_ita) loads ITA_10"
 gmd, sources(ITA_10)
 check `=_N>0' "sources(ITA_10), the file name, still loads"
+gmd m3_gdp, sources(ARG_1)
+cap confirm variable CS1_M3_GDP, exact
+check `=_rc==0 & c(k)==3' "sources(ARG_1), the file name, with a variable"
 gmd infl, sources(BIS_CPI) country(USA)
 cap confirm variable BIS_infl, exact
 check `=_rc==0' "source whose variables use another prefix"

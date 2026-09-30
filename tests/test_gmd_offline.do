@@ -150,7 +150,9 @@ gmd_source_file cs10_ita
 check `="`r(name)'"=="CS10_ITA" & "`r(file)'"=="ITA_10"' "lower-case cs10_ita is upper-cased"
 gmd_source_file CS123_usa
 check `="`r(file)'"=="USA_123" & "`r(prefix)'"=="CS123_"' "any number of slot digits"
-foreach s in IMF_WEO Mitchell ITA_10 CS1_ARGX CS_ARG {
+gmd_source_file ITA_10
+check `="`r(name)'"=="ITA_10" & "`r(file)'"=="ITA_10" & "`r(prefix)'"=="CS10_"' "file name ITA_10 is kept, prefix CS10_"
+foreach s in IMF_WEO Mitchell BIS_CPI CS1_ARGX CS_ARG ITA_1X {
     gmd_source_file `s'
     check `="`r(name)'"=="`s'" & "`r(file)'"=="`s'" & "`r(prefix)'"=="`s'_"' "`s' keeps its own name"
 }

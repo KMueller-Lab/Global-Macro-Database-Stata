@@ -1283,8 +1283,9 @@ end
 * Helper: map a source name to its file name and variable prefix
 * Country-specific sources are listed as CS<n>_<ISO3>, stored as <ISO3>_<n>.dta,
 * and name their variables CS<n>_<variable>, for any number of digits in <n>
-* (CS1_ARG -> ARG_1, CS10_ITA -> ITA_10). All other sources use their own name
-* for both. Returns r(name) (CS names upper-cased), r(file) and r(prefix).
+* (CS1_ARG -> ARG_1, CS10_ITA -> ITA_10). A name typed as the file name
+* (ITA_10) keeps it and gets the prefix CS10_. All other sources use their own
+* name for both. Returns r(name) (CS names upper-cased), r(file) and r(prefix).
 ********************************************************************************
 program define gmd_source_file, rclass
     args name
@@ -1293,6 +1294,12 @@ program define gmd_source_file, rclass
         local iso = regexs(2)
         return local name "CS`slot'_`iso'"
         return local file "`iso'_`slot'"
+        return local prefix "CS`slot'_"
+    }
+    else if regexm("`name'", "^[A-Z][A-Z][A-Z]_([0-9]+)$") {
+        local slot = regexs(1)
+        return local name "`name'"
+        return local file "`name'"
         return local prefix "CS`slot'_"
     }
     else {
