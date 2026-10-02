@@ -586,16 +586,11 @@ program define gmd, rclass
             exit 498
         }
 
-		* Country-specific sources are listed as CS<n>_<ISO3>, stored as
-		* <ISO3>_<n>.dta, and name their variables CS<n>_<variable>. All other
-		* sources use their own name for both.
-		local src_file "`sources'"
-		local src_prefix "`sources'_"
-		if strlen("`sources'") == 7 & upper(substr("`sources'", 1, 2)) == "CS" {
-			local sources = upper("`sources'")
-			local src_file = substr("`sources'", -3, 3) + "_" + substr("`sources'", 3, 1) 
-			local src_prefix = substr("`sources'", 1, 4)
-		}
+		* File name and variable prefix (these differ for CS<n>_<ISO3> sources)
+		gmd_source_file `sources'
+		local sources "`r(name)'"
+		local src_file "`r(file)'"
+		local src_prefix "`r(prefix)'"
         
         * The preserve stays active until the filters further below have
         * succeeded, so an error restores the user's original data.
@@ -623,8 +618,9 @@ program define gmd, rclass
 			local sources_typed "`sources'"
 			qui levelsof source_name if strlower(source_name) == strlower("`sources'"), local(sources) clean
 			if "`sources'" != "`sources_typed'" {
-				local src_file "`sources'"
-				local src_prefix "`sources'_"
+				gmd_source_file `sources'
+				local src_file "`r(file)'"
+				local src_prefix "`r(prefix)'"
 			}
 			cap use "https://gmd-releases.s3.ap-southeast-2.amazonaws.com/data/clean/combined/`src_file'.dta", clear
 			if _rc != 0 {
@@ -1281,6 +1277,36 @@ program define gmd_unchanged
     if _N == 0 exit
     tempfile gmd_tmp
     qui save "`gmd_tmp'"
+end
+
+********************************************************************************
+* Helper: map a source name to its file name and variable prefix
+* Country-specific sources are listed as CS<n>_<ISO3>, stored as <ISO3>_<n>.dta,
+* and name their variables CS<n>_<variable>, for any number of digits in <n>
+* (CS1_ARG -> ARG_1, CS10_ITA -> ITA_10). A name typed as the file name
+* (ITA_10) keeps it and gets the prefix CS10_. All other sources use their own
+* name for both. Returns r(name) (CS names upper-cased), r(file) and r(prefix).
+********************************************************************************
+program define gmd_source_file, rclass
+    args name
+    if regexm(upper("`name'"), "^CS([0-9]+)_([A-Z][A-Z][A-Z])$") {
+        local slot = regexs(1)
+        local iso = regexs(2)
+        return local name "CS`slot'_`iso'"
+        return local file "`iso'_`slot'"
+        return local prefix "CS`slot'_"
+    }
+    else if regexm("`name'", "^[A-Z][A-Z][A-Z]_([0-9]+)$") {
+        local slot = regexs(1)
+        return local name "`name'"
+        return local file "`name'"
+        return local prefix "CS`slot'_"
+    }
+    else {
+        return local name "`name'"
+        return local file "`name'"
+        return local prefix "`name'_"
+    }
 end
 
 ********************************************************************************

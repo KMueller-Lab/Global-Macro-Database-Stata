@@ -132,7 +132,7 @@ check `=_rc==0' "network(YES) accepted"
 
 di _n "=== package update notice compares versions numerically"
 * Subprograms of an ado-file are private to it; run the file to call one.
-cap program drop gmd_unchanged gmd_resolve_vars gmd_local_versions gmd_find_version gmd_newer
+cap program drop gmd_unchanged gmd_source_file gmd_resolve_vars gmd_local_versions gmd_find_version gmd_newer
 qui run "`root'/stata/gmd.ado"
 gmd_newer "2.0.0" "2.1.0"
 check `=r(newer)==0' "older published version gives no update notice"
@@ -140,6 +140,22 @@ gmd_newer "2.10.0" "2.9.1"
 check `=r(newer)==1' "2.10.0 is newer than 2.9.1"
 gmd_newer "" "2.1.0"
 check `=r(newer)==0' "missing published version gives no notice"
+
+di _n "=== CS<n>_<ISO3> source names map to <ISO3>_<n>.dta"
+gmd_source_file CS1_ARG
+check `="`r(file)'"=="ARG_1" & "`r(prefix)'"=="CS1_"' "CS1_ARG reads ARG_1, prefix CS1_"
+gmd_source_file CS10_ITA
+check `="`r(file)'"=="ITA_10" & "`r(prefix)'"=="CS10_"' "two-digit slot CS10_ITA reads ITA_10, prefix CS10_"
+gmd_source_file cs10_ita
+check `="`r(name)'"=="CS10_ITA" & "`r(file)'"=="ITA_10"' "lower-case cs10_ita is upper-cased"
+gmd_source_file CS123_usa
+check `="`r(file)'"=="USA_123" & "`r(prefix)'"=="CS123_"' "any number of slot digits"
+gmd_source_file ITA_10
+check `="`r(name)'"=="ITA_10" & "`r(file)'"=="ITA_10" & "`r(prefix)'"=="CS10_"' "file name ITA_10 is kept, prefix CS10_"
+foreach s in IMF_WEO Mitchell BIS_CPI CS1_ARGX CS_ARG ITA_1X {
+    gmd_source_file `s'
+    check `="`r(name)'"=="`s'" & "`r(file)'"=="`s'" & "`r(prefix)'"=="`s'_"' "`s' keeps its own name"
+}
 
 di _n "=== release stamp and data signature"
 cap noi gmd, version(2026_03)
